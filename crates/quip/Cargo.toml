@@ -1,0 +1,8 @@
+[package]
+name = "quip"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+qu = { path = "../qu" }
+tokio = { version = "1", features = ["net", "io-util", "rt", "macros"] }

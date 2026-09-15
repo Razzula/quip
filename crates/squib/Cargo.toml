@@ -1,0 +1,9 @@
+[package]
+name = "squib"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+qu = { path = "../qu" }
+quip = { path = "../quip" }
+tokio = { version = "1", features = ["net", "io-util", "rt-multi-thread", "macros", "time", "sync"] }
