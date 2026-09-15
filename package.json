@@ -1,0 +1,9 @@
+{
+    "name": "quip",
+    "private": true,
+    "workspaces": [
+        "packages/*",
+        "apps/*/client"
+    ],
+    "packageManager": "bun@1.2.21"
+}

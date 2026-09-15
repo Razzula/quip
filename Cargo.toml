@@ -3,6 +3,7 @@ members = [
     "crates/qu",
     "crates/quip",
     "crates/squib",
+    "apps/quip-web/server",
 ]
 
 resolver = "2"

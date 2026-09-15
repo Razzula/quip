@@ -1,5 +1,6 @@
 # quip
 
+## Crates
 | Crate   | Description |
 |---------|-------------|
 | `qu`    | [Qu Mixer MIDI Protocol (Firmware V1.9+)](./Qu_MIDI_Protocol_V1.9.pdf) Library |
@@ -20,4 +21,16 @@ cargo run -p squib -- 0.0.0.0:51325
 ```
 ```bash
 cargo build --workspace --release
+```
+
+## Packages
+| Package | Description |
+|---------|-------------|
+| `quip`  | Qu Mixer LAN (TCP) Client Communication Library |
+
+```bash
+bun run dev
+```
+```bash
+bun run build
 ```

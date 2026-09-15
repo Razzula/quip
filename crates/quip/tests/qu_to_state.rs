@@ -1,10 +1,11 @@
-use squib::{
+use quip::{
     state::MixerState,
-    handler::handle_event
+    qu_to_state::handle_event,
 };
 use qu::{
     channels::Channel,
     messages::QuEvent,
+    parameters::fader_to_db,
 };
 
 #[test]
@@ -20,7 +21,7 @@ fn handles_fader() {
         },
     );
 
-    assert_eq!(state.fader(channel), Some(0x40));
+    assert_eq!(state.fader(channel), Some(fader_to_db(0x40)));
 }
 
 #[test]

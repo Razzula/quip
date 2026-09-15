@@ -4,8 +4,6 @@
 //! Qu mixer emulator.
 
 mod emulator;
-mod state;
-mod handler;
 
 use emulator::handle_client;
 use quip::server::Server;

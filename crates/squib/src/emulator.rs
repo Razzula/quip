@@ -5,11 +5,6 @@
 
 use std::io;
 
-use crate::{
-    handler::handle_event,
-    state::MixerState,
-};
-
 use qu::{
     channels::Channel,
     parser::Parser,
@@ -20,6 +15,11 @@ use qu::{
         GET_SYSTEM_STATE,
         QU16_BOX_ID,
     },
+};
+use quip::{
+    state::MixerState,
+    qu_to_state::handle_event,
+    qu_from_state,
 };
 
 use tokio::{
@@ -61,7 +61,11 @@ pub async fn handle_client(mut stream: TcpStream) -> io::Result<()> {
                 // Parse incoming MIDI and update the simulated mixer state.
                 for event in parser.push(data) {
                     println!("RX: {}", event.describe());
+
                     handle_event(&mut state, event);
+
+                    // echo
+                    write_all(&mut stream, data).await?;
                 }
 
                 // Keep a copy for protocol-level SysEx detection.
@@ -260,10 +264,7 @@ async fn send_channel_state(
         // fader
         write_all(
             stream,
-            &protocol::fader(
-                channel,
-                state.fader(channel).unwrap(),
-            ),
+            &qu_from_state::fader(&state, channel).unwrap(),
         )
         .await?;
 
@@ -273,10 +274,7 @@ async fn send_channel_state(
         // mute
         write_all(
             stream,
-            &protocol::mute(
-                channel,
-                state.muted(channel).unwrap(),
-            ),
+            &qu_from_state::mute(&state, channel).unwrap(),
         )
         .await?;
 
@@ -295,21 +293,17 @@ async fn send_channel_state(
     for number in 1..=3 {
         let channel = Channel::stereo(number).unwrap();
 
+        // fader
         write_all(
             stream,
-            &protocol::fader(
-                channel,
-                state.fader(channel).unwrap(),
-            ),
+            &qu_from_state::fader(&state, channel).unwrap(),
         )
         .await?;
 
+        // mute
         write_all(
             stream,
-            &protocol::mute(
-                channel,
-                state.muted(channel).unwrap(),
-            ),
+            &qu_from_state::mute(&state, channel).unwrap(),
         )
         .await?;
     }
@@ -321,21 +315,17 @@ async fn send_channel_state(
     for number in 1..=8 {
         let channel = Channel::mix(number).unwrap();
 
+        // fader
         write_all(
             stream,
-            &protocol::fader(
-                channel,
-                state.fader(channel).unwrap(),
-            ),
+            &qu_from_state::fader(&state, channel).unwrap(),
         )
         .await?;
 
+        // mute
         write_all(
             stream,
-            &protocol::mute(
-                channel,
-                state.muted(channel).unwrap(),
-            ),
+            &qu_from_state::mute(&state, channel).unwrap(),
         )
         .await?;
     }

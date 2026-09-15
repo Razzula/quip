@@ -1,6 +1,8 @@
-use qu::messages::QuEvent;
-
 use crate::state::MixerState;
+use qu::{
+    parameters::fader_to_db,
+    messages::QuEvent,
+};
 
 pub fn handle_event(state: &mut MixerState, event: QuEvent) {
     match event {
@@ -15,7 +17,7 @@ pub fn handle_event(state: &mut MixerState, event: QuEvent) {
         }
 
         QuEvent::Fader { channel, value } => {
-            state.set_fader(channel, value);
+            state.set_fader(channel, fader_to_db(value));
         }
 
         QuEvent::Mute { channel, muted } => {

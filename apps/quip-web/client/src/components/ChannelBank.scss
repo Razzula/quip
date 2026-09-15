@@ -1,0 +1,14 @@
+.channel-bank {
+    display: flex;
+    gap: 2px;
+    padding: 8px;
+    overflow-x: auto;
+    background: #191a1d;
+    border: 1px solid #292b30;
+    border-radius: 6px;
+
+    &--compact {
+        width: fit-content;
+        min-width: 260px;
+    }
+}

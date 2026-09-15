@@ -1,0 +1,23 @@
+.mixer-section {
+    margin-bottom: 28px;
+
+    &__header {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 8px;
+
+        h2 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        span {
+            color: #6b7280;
+            font-size: 11px;
+        }
+    }
+}

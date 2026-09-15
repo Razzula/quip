@@ -1,0 +1,20 @@
+{
+    "name": "@quip/quip",
+    "version": "0.1.0",
+    "module": "index.ts",
+    "type": "module",
+    "exports": {
+        ".": "./index.ts"
+    },
+    "scripts": {
+        "dev": "bun run index.ts",
+        "test": "bun test",
+        "build": "bun build index.ts --outdir dist"
+    },
+    "devDependencies": {
+        "@types/bun": "latest"
+    },
+    "peerDependencies": {
+        "typescript": "^5"
+    }
+}
