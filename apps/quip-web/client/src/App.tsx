@@ -150,86 +150,96 @@ function isMixerChange(value: unknown): value is MixerChange {
 }
 
 function App() {
-    const [isConnected, setIsConnected] = useState(false)
     const [state, setState] = useState<MixerState>(initialState)
 
     const socketRef = useRef<WebSocket | null>(null)
+    const [isConnected, setIsConnected] = useState(false)
 
     useEffect(() => {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        const url = `${protocol}//${window.location.hostname}:3000/ws`
+        let retryTimeout: ReturnType<typeof setTimeout> | null = null
+        let disposed = false
 
-        console.log(`Connecting to WebSocket: ${url}`)
+        const connect = () => {
+            if (disposed) return
 
-        const socket = new WebSocket(url)
-        socketRef.current = socket
+            const protocol =
+                window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+            const url = `${protocol}//${window.location.hostname}:3000/ws`
 
-        socket.onopen = () => {
-            console.log('WebSocket connection established')
-            setIsConnected(true)
-        }
+            console.log(`Connecting to WebSocket: ${url}`)
 
-        socket.onerror = (event) => {
-            console.error('WebSocket connection error:', event)
-        }
+            const socket = new WebSocket(url)
+            socketRef.current = socket
 
-        socket.onclose = (event) => {
-            console.log(
-                `WebSocket connection closed (code ${event.code}): ${
-                    event.reason || 'no reason given'
-                }`,
-            )
+            socket.onopen = () => {
+                console.log('WebSocket connection established');
+                setIsConnected(true);
+            }
 
-            setIsConnected(false)
+            socket.onerror = (event) => {
+                console.error('WebSocket connection error:', event);
+                setIsConnected(false);
+            }
 
-            if (socketRef.current === socket) {
-                socketRef.current = null
+            socket.onclose = (event) => {
+                console.log(
+                    `WebSocket connection closed (code ${event.code}): ${event.reason || 'no reason given'
+                    }`,
+                )
+
+                if (socketRef.current === socket) {
+                    socketRef.current = null
+                }
+                setIsConnected(false);
+
+                // Try again after 2 seconds
+                if (!disposed) {
+                    retryTimeout = setTimeout(connect, 2000)
+                }
+            }
+
+            socket.onmessage = (event) => {
+                console.log('WebSocket message received:', event.data)
+
+                try {
+                    const message: unknown = JSON.parse(event.data)
+
+                    if (isMixerState(message)) {
+                        console.log('[STATE] Received full mixer state')
+                        setState(message)
+                        return
+                    }
+
+                    if (isMixerChange(message)) {
+                        console.log('[STATE] Received mixer change:', message)
+                        setState((current) => applyChange(current, message))
+                        return
+                    }
+
+                    console.error('[WebSocket] Unknown message:', message)
+                } catch (error) {
+                    console.error('Invalid WebSocket message:', error)
+                }
             }
         }
 
-        socket.onmessage = (event) => {
-            console.log('WebSocket message received:', event.data)
-
-            try {
-                const message: unknown = JSON.parse(event.data)
-
-                if (isMixerState(message)) {
-                    console.log('[STATE] Received full mixer state')
-                    setState(message)
-                    return
-                }
-
-                if (isMixerChange(message)) {
-                    console.log('[STATE] Received mixer change:', message)
-
-                    setState((current) =>
-                        applyChange(current, message),
-                    )
-                    return
-                }
-
-                console.error(
-                    '[WebSocket] Unknown message:',
-                    message,
-                )
-            } catch (error) {
-                console.error(
-                    'Invalid WebSocket message:',
-                    error,
-                )
-            }
-        }
+        connect()
 
         return () => {
-            console.log('Closing WebSocket connection')
+            disposed = true
 
-            if (socketRef.current === socket) {
-                socketRef.current = null
+            if (retryTimeout) {
+                clearTimeout(retryTimeout)
             }
 
-            socket.close()
+            console.log('Closing WebSocket connection')
+
+            if (socketRef.current) {
+                socketRef.current.close()
+                socketRef.current = null
+            }
         }
-    }, [])
+    }, []);
 
     function sendChange(change: MixerChange) {
         const socket = socketRef.current
@@ -303,12 +313,12 @@ function App() {
                     <h1>Quip</h1>
 
                     <span
-                        className={`mixer__connection${
-                            isConnected
-                                ? ' mixer__connection--connected'
-                                : ''
-                        }`}
+                        className={`mixer__connection${isConnected
+                            ? ' mixer__connection--connected'
+                            : ' mixer__connection--connecting'
+                            }`}
                     >
+                        <span className="mixer__connection-indicator" />
                         {isConnected ? 'Connected' : 'Not Connected'}
                     </span>
                 </div>

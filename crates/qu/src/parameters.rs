@@ -190,6 +190,7 @@ impl Parameter {
 // FADER
 pub const FADER_CURVE: &[(u8, f32)] = &[
     (0x00, f32::NEG_INFINITY),
+    (0x0C, -45.0),
     (0x10, -40.0),
     (0x17, -35.0),
     (0x1F, -30.0),
@@ -206,10 +207,6 @@ pub const FADER_CURVE: &[(u8, f32)] = &[
 pub fn fader_to_db(value: u8) -> f32 {
     if value == 0 {
         return f32::NEG_INFINITY;
-    }
-
-    if value <= 0x10 {
-        return -40.0;
     }
 
     for window in FADER_CURVE.windows(2) {
@@ -232,10 +229,6 @@ pub fn fader_to_db(value: u8) -> f32 {
 pub fn db_to_fader(db: f32) -> u8 {
     if db.is_infinite() && db.is_sign_negative() {
         return 0x00;
-    }
-
-    if db <= -40.0 {
-        return 0x10;
     }
 
     if db >= 10.0 {

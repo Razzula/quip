@@ -11,4 +11,24 @@
         width: fit-content;
         min-width: 260px;
     }
+
+    @media (max-width: 768px) {
+        display: grid;
+        width: 100%;
+        box-sizing: border-box;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        overflow: hidden;
+
+        .channel-strip {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+
+        &--compact {
+            width: 100%;
+            min-width: 0;
+        }
+    }
 }

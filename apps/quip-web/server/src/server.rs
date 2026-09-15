@@ -36,6 +36,7 @@ struct AppState {
     mixer: Arc<RwLock<MixerState>>,
     client_updates: broadcast::Sender<MixerChange>,
     qu_updates: broadcast::Sender<MixerChange>,
+    state_ready: tokio::sync::watch::Sender<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,7 +122,7 @@ impl ClientHandler {
         println!("[RX UI] Parsed {:?}", change);
 
         // Relay request to Qu
-        if self.state.client_updates.send(change.clone()).is_err() {
+        if self.state.qu_updates.send(change.clone()).is_err() {
             println!("[TX QU] No clients connected");
         } else {
             println!("[TX QU] {:?}", change);
@@ -185,17 +186,36 @@ impl QuHandler {
         // quip owns the authoritative interpretation of Qu events.
         {
             let mut mixer = self.state.mixer.write().await;
-            qu_to_state::handle_event(&mut mixer, event);
+            qu_to_state::handle_event(&mut mixer, event.clone());
         }
 
-        if let Some(change) = change {
-            println!("[STATE] Applied {:?}", change);
+        // The initial GET_SYSTEM_STATE response has finished.
+        //
+        // Replace `SystemStateComplete` with the actual QuEvent emitted by
+        // the protocol when the response is complete.
+        let is_end_sync = matches!(
+            &event,
+            QuEvent::SysEx(data)
+                if data.as_slice() == qu::protocol::END_SYNC
+        );
+        if is_end_sync {
+            println!("[QU] Initial system state received");
+            let _ = self.state.state_ready.send_replace(true);
+            return;
+        }
 
-            // A Qu-originated change is sent towards clients.
-            if self.state.client_updates.send(change.clone()).is_err() {
-                println!("[QU TX → CLIENT] No clients connected");
-            } else {
-                println!("[QU TX → CLIENT] {:?}", change);
+        // Do not send individual state changes to clients while the initial
+        // system state is still being populated. The client will receive the
+        // complete authoritative state once state_ready becomes true.
+        if let Some(change) = change {
+            if *self.state.state_ready.borrow() {
+                println!("[STATE] Applied {:?}", change);
+
+                if self.state.client_updates.send(change.clone()).is_err() {
+                    println!("[QU TX → CLIENT] No clients connected");
+                } else {
+                    println!("[QU TX → CLIENT] {:?}", change);
+                }
             }
         }
     }
@@ -319,11 +339,13 @@ async fn run_qu(
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (client_updates, _) = broadcast::channel(64);
     let (qu_updates, _) = broadcast::channel(64);
+    let (state_ready, _) = tokio::sync::watch::channel(false);
 
     let state = AppState {
         mixer: Arc::new(RwLock::new(MixerState::default())),
         client_updates,
         qu_updates,
+        state_ready,
     };
 
     let app = Router::new()
@@ -370,14 +392,19 @@ async fn handle_websocket(
     println!("[CLIENT] Connected");
 
     // Send the authoritative state when the client connects.
+    let mut state_ready = state.state_ready.subscribe();
+    while !*state_ready.borrow() {
+        if state_ready.changed().await.is_err() {
+            return;
+        }
+    }
+    // The Qu has now populated the authoritative state.
     let current_state = state.mixer.read().await.clone();
 
     let Ok(message) = serde_json::to_string(&current_state) else {
         eprintln!("[TX UI] Failed to serialise mixer state");
         return;
     };
-
-    println!("[TX UI] Initial mixer state");
 
     if sender
         .send(Message::Text(message.into()))
@@ -415,25 +442,25 @@ async fn handle_websocket(
 
                 let Ok(message) = serde_json::to_string(&change) else {
                     eprintln!(
-                        "[CLIENT TX] Failed to serialise {:?}",
+                        "[TX UI] Failed to serialise {:?}",
                         change
                     );
                     continue;
                 };
 
-                println!("[CLIENT TX] {}", message);
+                println!("[TX UI] {}", message);
 
                 if sender
                     .send(Message::Text(message.into()))
                     .await
                     .is_err()
                 {
-                    eprintln!("[CLIENT TX] Client disconnected");
+                    eprintln!("[UI] Client disconnected");
                     break;
                 }
             }
         }
     }
 
-    println!("[CLIENT] Connection closed");
+    println!("[UI] Connection closed");
 }
