@@ -2,6 +2,7 @@
 members = [
     "crates/qu",
     "crates/quip",
+    "crates/quippi",
     "crates/squib",
     "apps/quip-web/server",
 ]

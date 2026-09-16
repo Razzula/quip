@@ -283,7 +283,13 @@ async fn run_qu(
     let devices = discover().await?;
     let device = devices
         .into_iter()
-        .next()
+        .min_by_key(|device| {
+            match device.name.to_lowercase().as_str() {
+                "quippi" => 0,
+                "squib" => 1,
+                _ => 2,
+            }
+        })
         .ok_or("No Qu mixers found")?;
 
     // Discovery uses UDP port 51320, whereas Qu mixer control uses

@@ -22,20 +22,22 @@ impl TCPServer {
 
     pub async fn run<F, Fut>(&self, handler: F) -> io::Result<()>
     where
-        F: Fn(TcpStream) -> Fut + Send + Sync + Copy + 'static,
+        F: Fn(TcpStream) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = io::Result<()>> + Send + 'static,
     {
         loop {
             let (stream, address) = self.listener.accept().await?;
 
-            println!("[qu    ] Client connected: {address}");
+            println!("Client connected: {address}");
+
+            let future = handler(stream);
 
             tokio::spawn(async move {
-                if let Err(error) = handler(stream).await {
-                    eprintln!("[qu    ] Client error: {error}");
+                if let Err(error) = future.await {
+                    eprintln!("Client error: {error}");
                 }
 
-                println!("[qu    ] Client disconnected: {address}");
+                println!("Client disconnected: {address}");
             });
         }
     }

@@ -43,7 +43,7 @@ pub async fn discover() -> io::Result<Vec<Device>> {
         .await?;
 
     println!(
-        "[discovery] TX {} -> {}: {}",
+        "[qufind] TX {} -> {}: {}",
         socket.local_addr()?,
         destination,
         String::from_utf8_lossy(DISCOVERY_MESSAGE),
@@ -73,7 +73,7 @@ pub async fn discover() -> io::Result<Vec<Device>> {
         let name = String::from_utf8_lossy(name).into_owned();
 
         println!(
-            "[discovery] RX {} -> {}: {}",
+            "[qufind] RX {} -> {}: {}",
             address,
             socket.local_addr()?,
             name,
