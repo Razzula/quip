@@ -23,12 +23,13 @@ use tokio::{
     },
 };
 
-use qu::messages::QuEvent;
+use qu::{messages::QuEvent, protocol::TCP_PORT};
 
 use quip::{
     qu_to_state,
     qu_from_state,
     state::MixerState,
+    client::discovery::discover,
 };
 
 #[derive(Clone)]
@@ -277,7 +278,20 @@ async fn send_change_to_qu(
 async fn run_qu(
     state: AppState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let address = "192.168.1.2:51325";
+    println!("[QU] Discovering mixers...");
+
+    let devices = discover().await?;
+    let device = devices
+        .into_iter()
+        .next()
+        .ok_or("No Qu mixers found")?;
+
+    // Discovery uses UDP port 51320, whereas Qu mixer control uses
+    // TCP port 51325. Keep the discovered IP but use the TCP port.
+    let address = SocketAddr::new(
+        device.address.ip(),
+        TCP_PORT,
+    );
 
     println!("[QU] Connecting to {}", address);
 

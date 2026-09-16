@@ -5,8 +5,14 @@
 
 mod emulator;
 
-use emulator::{qu16, qufind};
-use quip::server::Server;
+use emulator::qu16;
+use quip::server::{
+    discovery::DiscoveryServer,
+    tcp::TCPServer,
+};
+
+/// Device name reported during QuYou discovery.
+const DEVICE_NAME: &[u8] = b"squib\0";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,13 +22,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start QuYou discovery.
     tokio::spawn(async {
-        if let Err(error) = qufind::run().await {
-            eprintln!("QuYou discovery server failed: {error}");
+        match DiscoveryServer::bind_default(DEVICE_NAME).await {
+            Ok(server) => {
+                if let Err(error) = server.run().await {
+                    eprintln!("QuYou discovery server failed: {error}");
+                }
+            }
+            Err(error) => {
+                eprintln!("QuYou discovery server failed to bind: {error}");
+            }
         }
     });
 
     // Start the Qu TCP server.
-    let server = Server::bind(&address).await?;
+    let server = TCPServer::bind(&address).await?;
 
     println!("[qu-16 ] Qu Emulator listening on {address}");
 

@@ -7,4 +7,3 @@ edition = "2021"
 qu = { path = "../qu" }
 quip = { path = "../quip" }
 tokio = { version = "1", features = ["net", "io-util", "rt-multi-thread", "macros", "time", "sync"] }
-socket2 = "0.6"

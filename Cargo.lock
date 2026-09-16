@@ -392,6 +392,7 @@ dependencies = [
  "qu",
  "serde",
  "serde_json",
+ "socket2",
  "tokio",
 ]
 
@@ -563,7 +564,6 @@ version = "0.1.0"
 dependencies = [
  "qu",
  "quip",
- "socket2",
  "tokio",
 ]
 

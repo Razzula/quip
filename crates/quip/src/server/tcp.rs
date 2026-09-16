@@ -1,20 +1,17 @@
 //! Generic TCP server infrastructure for Qu communication.
 //!
 //! Provides reusable server-side networking for accepting TCP connections
-//! using the Qu communication port and dispatching each connection to a
-//! caller-provided handler.
+//! and dispatching each connection to a caller-provided handler.
 
 use std::{future::Future, io, sync::Arc};
 
-use tokio::{
-    net::{TcpListener, TcpStream},
-};
+use tokio::net::{TcpListener, TcpStream};
 
-pub struct Server {
+pub struct TCPServer {
     listener: Arc<TcpListener>,
 }
 
-impl Server {
+impl TCPServer {
     pub async fn bind(address: &str) -> io::Result<Self> {
         let listener = TcpListener::bind(address).await?;
 
@@ -31,14 +28,14 @@ impl Server {
         loop {
             let (stream, address) = self.listener.accept().await?;
 
-            println!("Client connected: {address}");
+            println!("[qu    ] Client connected: {address}");
 
             tokio::spawn(async move {
                 if let Err(error) = handler(stream).await {
-                    eprintln!("Client error: {error}");
+                    eprintln!("[qu    ] Client error: {error}");
                 }
 
-                println!("Client disconnected: {address}");
+                println!("[qu    ] Client disconnected: {address}");
             });
         }
     }
