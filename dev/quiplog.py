@@ -4,9 +4,9 @@ import socket
 from datetime import datetime
 
 
-HOST = '127.0.0.1'
+HOST = '192.168.1.2'
 PORT = 51325
-LOG_FILE = 'qu16.log'
+LOG_FILE = 'quip.log'
 
 
 # ---------------------------------------------------------------------------
@@ -24,23 +24,28 @@ GET_SYSTEM_STATE = bytes.fromhex(
 # Mixes = 0x60-0x66
 # LR = 0x67
 CHANNEL_NAMES = {}
+
 for i in range(32):
     CHANNEL_NAMES[0x20 + i] = f'CH{i + 1}'
 
-CHANNEL_NAMES[0x67] = 'LR'
 CHANNEL_NAMES.update({
     0x40: 'ST1',
     0x41: 'ST2',
     0x42: 'ST3',
+
+    0x60: 'Mix 1',
+    0x61: 'Mix 2',
+    0x62: 'Mix 3',
+    0x63: 'Mix 4',
+    0x64: 'Mix 5-6',
+    0x65: 'Mix 7-8',
+    0x66: 'Mix 9-10',
+    0x67: 'LR Main',
 })
-for i in range(10):
-    if i < 8:
-        CHANNEL_NAMES[0x60 + i] = f'Mix {i + 1}'
-    else:
-        CHANNEL_NAMES[0x60 + i] = f'Mix {i + 1}'
 
 for i in range(4):
     CHANNEL_NAMES[0x50 + i] = f'Mute Group {i + 1}'
+
 for i in range(4):
     CHANNEL_NAMES[0x10 + i] = f'DCA {i + 1}'
 
@@ -160,6 +165,10 @@ def hex_bytes(data: bytes) -> str:
     return ' '.join(f'{b:02X}' for b in data)
 
 
+def raw_suffix(data: bytes) -> str:
+    return f' [{hex_bytes(data)}]'
+
+
 def channel_name(ch: int) -> str:
     return CHANNEL_NAMES.get(ch, f'Channel 0x{ch:02X}')
 
@@ -217,95 +226,93 @@ class NRPNState:
         self.value_lsb = None
 
 
-def describe_parameter(channel: int, parameter: int, value: int, index: int) -> str:
-    ch = channel_name(channel)
-    name = PARAMETERS.get(parameter, f'Unknown parameter 0x{parameter:02X}')
+def describe_parameter(
+    channel: int,
+    parameter: int,
+    value: int,
+    raw: bytes,
+) -> str:
+    ch = CHANNEL_NAMES.get(channel, f'0x{channel:02X}')
+    raw_text = raw_suffix(raw)
 
     # Fader
     if parameter == 0x17:
         return (
             f'{ch} Fader: {db_value(value)} '
             f'(MIDI {value:02X})'
-        )
-
-    # Send level
-    if parameter == 0x20:
-        destination = MIX_NAMES.get(index, f'Index 0x{index:02X}')
-        return (
-            f'{ch} {destination} send: {db_value(value)} '
-            f'(MIDI {value:02X})'
+            f'{raw_text}'
         )
 
     # Pan
     if parameter == 0x16:
-        if value == 0x00:
-            position = 'full left'
-        elif value == 0x25:
-            position = 'centre'
-        elif value == 0x4A:
-            position = 'full right'
-        else:
-            position = f'raw {value:02X}'
+        return (
+            f'{ch} Pan: {value:02X} '
+            f'(MIDI {value:02X})'
+            f'{raw_text}'
+        )
 
-        destination = MIX_NAMES.get(index, f'index 0x{index:02X}')
+    # LR assignment
+    if parameter == 0x18:
+        return (
+            f'{ch} LR Assign: '
+            f'{"ON" if value else "OFF"} '
+            f'(MIDI {value:02X})'
+            f'{raw_text}'
+        )
 
-        return f'{ch} Pan ({destination}): {position}'
+    # Send level
+    if parameter == 0x20:
+        mix_name = MIX_NAMES.get(
+            value >> 8,
+            f'Mix {value >> 8}',
+        )
+        level = value & 0x7F
+
+        return (
+            f'{ch} {mix_name} Send: {db_value(level)} '
+            f'(MIDI {level:02X})'
+            f'{raw_text}'
+        )
 
     # Binary parameters
     if parameter in {
-        0x11, 0x14, 0x18, 0x46, 0x51,
-        0x55, 0x57, 0x59, 0x5A,
-        0x68, 0x69, 0x6B, 0x6D, 0x71
+        0x19,  # Polarity
+        0x1A,  # Mute
+        0x1B,  # PAFL
     }:
-        state = 'ON' if value else 'OFF'
-        return f'{ch} {name}: {state}'
+        return (
+            f'{ch} {PARAMETERS.get(parameter, f"Parameter {parameter:02X}")}: '
+            f'{"ON" if value else "OFF"} '
+            f'(MIDI {value:02X})'
+            f'{raw_text}'
+        )
 
-    if parameter == 0x52:
-        # Digital trim: 0x40 = 0 dB, range -24 to +24 dB.
-        return f'{ch} Digital Trim: MIDI {value:02X}'
+    # Known parameter name
+    name = PARAMETERS.get(parameter)
 
-    if parameter == 0x19:
-        return f'{ch} Local Gain: MIDI {value:02X}'
+    if name is not None:
+        return (
+            f'{ch} {name}: '
+            f'raw {value:02X} '
+            f'(MIDI {value:02X})'
+            f'{raw_text}'
+        )
 
-    if parameter in {0x01, 0x05, 0x09, 0x0D}:
-        # EQ gain: 0x40 = 0 dB, range -12 to +12 dB.
-        return f'{ch} {name}: MIDI {value:02X}'
-
-    if parameter == 0x5E:
-        mode = {
-            0x00: 'Group mode',
-            0x01: 'Mix mode',
-        }.get(value, f'unknown mode {value:02X}')
-
-        return f'{ch} {name}: {mode}'
-
-    if parameter == 0x40:
-        return f'{ch} DCA assignment: index {index:02X}, value {value:02X}'
-
-    if parameter == 0x50:
-        mode = 'Pre' if value else 'Post'
-        destination = MIX_NAMES.get(index, f'index {index:02X}')
-        return f'{ch} {destination}: {mode}-fader'
-
-    if parameter == 0x5C:
-        return f'{ch} Mute Group assignment: {value:02X}'
-
-    if parameter == 0x6A:
-        return f'{ch} Polarity: {"REVERSED" if value else "normal"}'
-
-    if parameter == 0x6C:
-        return f'{ch} Delay: MIDI {value:02X}'
-
-    if parameter == 0x70:
-        return f'{ch} GEQ band {index:02X}: MIDI {value:02X}'
-
+    # Unknown parameter
     return (
-        f'{ch} {name}: value={value:02X} '
-        f'index={index:02X}'
+        f'{ch} Parameter {parameter:02X}: '
+        f'raw {value:02X} '
+        f'(MIDI {value:02X})'
+        f'{raw_text}'
     )
 
 
-def process_nrpn_byte(status: int, data1: int, data2: int, state: NRPNState):
+def process_nrpn_byte(
+    status: int,
+    data1: int,
+    data2: int,
+    state: NRPNState,
+):
     """
     Process one MIDI Control Change message.
 
@@ -331,9 +338,6 @@ def process_nrpn_byte(status: int, data1: int, data2: int, state: NRPNState):
     elif controller == 0x06:
         state.value_msb = value
 
-        # Some messages can be useful with MSB alone.
-        # Don't emit yet because the following LSB identifies VX.
-
     elif controller == 0x26:
         state.value_lsb = value
 
@@ -342,22 +346,28 @@ def process_nrpn_byte(status: int, data1: int, data2: int, state: NRPNState):
             and state.parameter is not None
             and state.value_msb is not None
         ):
-            description = describe_parameter(
+            raw = bytes([
+                status,
+                0x63,
+                state.channel,
+                0x62,
+                state.parameter,
+                0x06,
+                state.value_msb,
+                0x26,
+                state.value_lsb,
+            ])
+
+            # The Qu uses the MSB as the actual 7-bit value for the
+            # parameters currently being decoded.
+            value = state.value_msb
+
+            return describe_parameter(
                 state.channel,
                 state.parameter,
-                state.value_msb,
-                state.value_lsb,
+                value,
+                raw,
             )
-
-            raw = (
-                f'B{status & 0x0F:X} '
-                f'63 {state.channel:02X} '
-                f'62 {state.parameter:02X} '
-                f'06 {state.value_msb:02X} '
-                f'26 {state.value_lsb:02X}'
-            )
-
-            return f'{description} [{raw}]'
 
     return None
 
@@ -381,7 +391,7 @@ class MIDIProcessor:
             if byte == 0xFE:
                 continue
 
-            # System real-time messages can occur anywhere.
+            # MIDI real-time messages can occur anywhere.
             if byte >= 0xF8:
                 continue
 
@@ -397,9 +407,12 @@ class MIDIProcessor:
                 self.pending.append(byte)
 
                 if byte == 0xF7:
+                    raw = bytes(self.pending)
+
                     events.append(
-                        f'SysEx: {hex_bytes(bytes(self.pending))}'
+                        f'SysEx: {hex_bytes(raw)}'
                     )
+
                     self.pending.clear()
 
                 continue
@@ -412,8 +425,11 @@ class MIDIProcessor:
 
             # No running status means this is malformed/incomplete data.
             if self.running_status is None:
+                raw = bytes([byte])
+
                 events.append(
                     f'Unexpected MIDI data byte: {byte:02X}'
+                    f'{raw_suffix(raw)}'
                 )
                 continue
 
@@ -431,6 +447,12 @@ class MIDIProcessor:
             data2 = self.pending[1]
             self.pending.clear()
 
+            raw = bytes([
+                status,
+                data1,
+                data2,
+            ])
+
             # ---------------------------------------------------------------
             # Control Change
             # ---------------------------------------------------------------
@@ -447,7 +469,7 @@ class MIDIProcessor:
                     events.append(event)
 
             # ---------------------------------------------------------------
-            # Note On / Note Off = Qu mutes
+            # Note On = Qu mutes / PAFL
             # ---------------------------------------------------------------
 
             elif message_type == 0x90:
@@ -461,24 +483,31 @@ class MIDIProcessor:
                         events.append(
                             f'CH{channel + 1} MUTE: ON '
                             f'(velocity {velocity:02X})'
+                            f'{raw_suffix(raw)}'
                         )
                     else:
                         events.append(
                             f'CH{channel + 1} MUTE: OFF '
                             f'(velocity {velocity:02X})'
+                            f'{raw_suffix(raw)}'
                         )
 
                 elif 0x40 <= note <= 0x5F:
                     channel = note - 0x40
+
                     events.append(
                         f'CH{channel + 1} PAFL: '
                         f'{"ON" if velocity else "OFF"}'
+                        f'{raw_suffix(raw)}'
                     )
 
                 elif 0x60 <= note <= 0x7F:
                     events.append(
-                        f'Note On: channel={midi_channel + 1} '
-                        f'note={note:02X} velocity={velocity:02X}'
+                        f'Note On: '
+                        f'channel={midi_channel + 1} '
+                        f'note={note:02X} '
+                        f'velocity={velocity:02X}'
+                        f'{raw_suffix(raw)}'
                     )
 
             # ---------------------------------------------------------------
@@ -487,11 +516,24 @@ class MIDIProcessor:
 
             elif message_type == 0x80:
                 note = data1
+                velocity = data2
 
                 if 0x20 <= note <= 0x3F:
                     channel = note - 0x20
+
                     events.append(
-                        f'CH{channel + 1} MUTE key released'
+                        f'CH{channel + 1} MUTE key released '
+                        f'(velocity {velocity:02X})'
+                        f'{raw_suffix(raw)}'
+                    )
+
+                else:
+                    events.append(
+                        f'Note Off: '
+                        f'channel={midi_channel + 1} '
+                        f'note={note:02X} '
+                        f'velocity={velocity:02X}'
+                        f'{raw_suffix(raw)}'
                     )
 
             # ---------------------------------------------------------------
@@ -499,14 +541,23 @@ class MIDIProcessor:
             # ---------------------------------------------------------------
 
             elif message_type == 0xC0:
+                # Program Change only has one data byte, but this parser
+                # currently treats MIDI messages as two-byte messages.
                 events.append(
-                    f'Program Change: channel={midi_channel + 1} '
+                    f'Program Change: '
+                    f'channel={midi_channel + 1} '
                     f'program={data1}'
+                    f'{raw_suffix(bytes([status, data1]))}'
                 )
+
+            # ---------------------------------------------------------------
+            # Generic MIDI
+            # ---------------------------------------------------------------
 
             else:
                 events.append(
                     f'MIDI: {status:02X} {data1:02X} {data2:02X}'
+                    f'{raw_suffix(raw)}'
                 )
 
         return events
@@ -546,16 +597,15 @@ def main() -> None:
         with socket.create_connection((HOST, PORT)) as sock:
             log('Connected.', log_file)
 
-            # Initial Active Sense.
+            # Initial data, normally Active Sense.
             data = sock.recv(4096)
 
             if data:
                 for event in processor.process(data):
                     log(event, log_file)
 
-            log('Requesting system state...', log_file)
-
-            sock.sendall(GET_SYSTEM_STATE)
+            # log('Requesting system state...', log_file)
+            # sock.sendall(GET_SYSTEM_STATE)
 
             while True:
                 data = sock.recv(4096)

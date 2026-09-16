@@ -67,7 +67,7 @@ pub const GET_SYSTEM_STATE: [u8; 12] = [
 
 /// End Sync message.
 pub const END_SYNC: [u8; 11] = [
-    0xf0,
+    0xf0,   
     0x00,
     0x00,
     0x1a,
@@ -75,7 +75,7 @@ pub const END_SYNC: [u8; 11] = [
     0x11,
     0x01,
     0x00,
-    0x01,
+    0x00, // NB. this was required by the real Qu16 -- TODO check why 0x00 was wrong
     0x14,
     0xf7,
 ];

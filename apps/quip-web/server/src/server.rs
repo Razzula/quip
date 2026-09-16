@@ -198,6 +198,10 @@ impl QuHandler {
             QuEvent::SysEx(data)
                 if data.as_slice() == qu::protocol::END_SYNC
         );
+        if let QuEvent::SysEx(data) = &event {
+            println!("[QU] SysEx received: {:02X?}", data);
+            println!("[QU] SysEx expected: {:02X?}", qu::protocol::END_SYNC);
+        }
         if is_end_sync {
             println!("[QU] Initial system state received");
             let _ = self.state.state_ready.send_replace(true);
@@ -273,7 +277,7 @@ async fn send_change_to_qu(
 async fn run_qu(
     state: AppState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let address = "127.0.0.1:51325";
+    let address = "192.168.1.2:51325";
 
     println!("[QU] Connecting to {}", address);
 
@@ -282,11 +286,7 @@ async fn run_qu(
     println!("[QU] Connected");
 
     // Ask the Qu for its current system state.
-    stream
-        .write_all(&qu::protocol::get_system_state())
-        .await?;
-
-    println!("[QU TX] GET_SYSTEM_STATE");
+    request_system_state(&mut stream).await?;
 
     let mut parser = qu::parser::Parser::new();
     let mut buffer = [0u8; 4096];
@@ -329,9 +329,30 @@ async fn run_qu(
                     );
                     break;
                 }
+
+                if let Err(error) = request_system_state(&mut stream).await {
+                    eprintln!(
+                        "[QU TX] Failed to request state after {:?}: {}",
+                        change,
+                        error
+                    );
+                    break;
+                }
             }
         }
     }
+
+    Ok(())
+}
+
+async fn request_system_state(
+    stream: &mut TcpStream,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    stream
+        .write_all(&qu::protocol::get_system_state())
+        .await?;
+
+    println!("[QU TX] GET_SYSTEM_STATE");
 
     Ok(())
 }

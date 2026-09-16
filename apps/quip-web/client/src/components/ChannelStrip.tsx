@@ -28,7 +28,7 @@ export function ChannelStrip({
     const dragging = useRef(false);
     const animationFrame = useRef<number | null>(null);
 
-    const faderMin = -60;
+    const faderMin = -50;
 
     useEffect(() => {
         if (dragging.current) {
@@ -119,8 +119,8 @@ export function ChannelStrip({
                     <span>-5</span>
                     <span>-10</span>
                     <span>-20</span>
+                    <span>-30</span>
                     <span>-40</span>
-                    <span>-45</span>
                     <span>-∞</span>
                 </div>
 

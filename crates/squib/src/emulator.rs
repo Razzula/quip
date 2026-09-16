@@ -3,17 +3,6 @@
 //! Implements the behaviour of a virtual Qu mixer, responding to incoming
 //! Qu MIDI protocol messages and providing simulated mixer state over TCP.
 
-// NB. QuYou discovery protocol observations:
-// - Qu uses UDP destination port 51320.
-// - QuYou polls for Qu devices approximately once per second.
-// - Each discovery packet is a UDP broadcast to 255.255.255.255.
-// - The payload is the 7-byte ASCII string "QU Find" (hex: 51 55 20 46 69 6e 64).
-// - The packet is therefore packaged as a 7-byte UDP datagram, sent to port 51320.
-// - The source port is an ephemeral UDP port and may change when discovery is
-//   restarted (e.g. by pressing Refresh in QuYou).
-// - Wireshark filter used to isolate the discovery packets:
-//     udp.dstport == 51320
-
 use std::io;
 
 use qu::{
