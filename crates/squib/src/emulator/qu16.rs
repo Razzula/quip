@@ -3,6 +3,8 @@
 //! Implements the behaviour of a virtual Qu mixer, responding to incoming
 //! Qu MIDI protocol messages and providing simulated mixer state over TCP.
 
+use qu::messages::hex;
+
 use std::io;
 
 use qu::{
@@ -56,11 +58,11 @@ pub async fn handle_client(mut stream: TcpStream) -> io::Result<()> {
 
                 let data = &buffer[..count];
 
-                println!("RX {} bytes: {}", count, hex(data));
+                println!("[qu-16 ] RX {} bytes: {}", count, hex(data));
 
                 // Parse incoming MIDI and update the simulated mixer state.
                 for event in parser.push(data) {
-                    println!("RX: {}", event.describe());
+                    println!("[qu-16 ] RX: {}", event.describe());
 
                     handle_event(&mut state, event);
 
@@ -100,7 +102,7 @@ async fn handle_sysex(
     message: &[u8],
 ) -> io::Result<()> {
     if message == GET_SYSTEM_STATE {
-        println!("RX: Get System State");
+        println!("[qu-16 ] RX: Get System State");
         send_system_state(stream, state).await?;
     }
 
@@ -351,18 +353,11 @@ fn next_sysex(buffer: &mut Vec<u8>) -> Option<Vec<u8>> {
     Some(message)
 }
 
-fn hex(data: &[u8]) -> String {
-    data.iter()
-        .map(|byte| format!("{byte:02X}"))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
 async fn write_all(
     stream: &mut TcpStream,
     data: &[u8],
 ) -> io::Result<()> {
     stream.write_all(data).await?;
-    println!("TX: {}", hex(data));
+    println!("[qu-16 ] TX: {}", hex(data));
     Ok(())
 }

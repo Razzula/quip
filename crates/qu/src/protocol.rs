@@ -8,6 +8,12 @@ use crate::{
     parameters::Parameter,
 };
 
+// DISCOVERY
+pub const DISCOVERY_PORT: u16 = 51320;
+pub const DISCOVERY_MESSAGE: &[u8] = b"QU Find";
+
+// MIDI
+
 pub const PROTOCOL_VERSION: [u8; 2] = [0x11, 0x01];
 
 pub const TCP_PORT: u16 = 51325;
@@ -67,7 +73,7 @@ pub const GET_SYSTEM_STATE: [u8; 12] = [
 
 /// End Sync message.
 pub const END_SYNC: [u8; 11] = [
-    0xf0,   
+    0xf0,
     0x00,
     0x00,
     0x1a,

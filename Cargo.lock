@@ -563,6 +563,7 @@ version = "0.1.0"
 dependencies = [
  "qu",
  "quip",
+ "socket2",
  "tokio",
 ]
 

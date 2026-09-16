@@ -214,7 +214,7 @@ impl QuEvent {
     }
 }
 
-fn hex(data: &[u8]) -> String {
+pub fn hex(data: &[u8]) -> String {
     data.iter()
         .map(|byte| format!("{byte:02X}"))
         .collect::<Vec<_>>()
