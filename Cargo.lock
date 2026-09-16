@@ -397,19 +397,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quip-web"
-version = "0.1.0"
-dependencies = [
- "axum",
- "futures-util",
- "qu",
- "quip",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "quippi"
 version = "0.1.0"
 dependencies = [
@@ -640,6 +627,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.5",
+]
+
+[[package]]
+name = "thwip"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "futures-util",
+ "qu",
+ "quip",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

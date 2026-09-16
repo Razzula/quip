@@ -390,7 +390,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let app = Router::new()
-        .route("/", get(|| async { "quip-web server" }))
+        .route("/", get(|| async { "thwip server" }))
         .route("/ws", get(websocket))
         .with_state(state.clone());
 

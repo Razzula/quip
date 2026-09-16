@@ -4,7 +4,7 @@ members = [
     "crates/quip",
     "crates/quippi",
     "crates/squib",
-    "apps/quip-web/server",
+    "apps/thwip/server",
 ]
 
 resolver = "2"

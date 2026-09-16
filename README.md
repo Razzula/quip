@@ -17,9 +17,7 @@
 ## Apps
 | `./apps/...` | Description |
 |--------------|-------------|
-| `quip-web`   | Controller web app for Qu devices |
-<!-- very tempting to call the "web" version of "quip": "thwip" in honour of Spider-Man... -->
-<!-- https://static0.srcdn.com/wordpress/wp-content/uploads/2021/10/Spider-Man-Thwip.jpg -->
+| `thwip`      | [quip web](https://soundofcomics.sdsu.edu/sound-effects/#:~:text=THWIP) controller for Qu devices |
 
 ```bash
 bun run dev
