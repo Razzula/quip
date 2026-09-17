@@ -6,7 +6,8 @@
 
 use crate::{
     channels::{Channel, SendDestination},
-    parameters::{Parameter, fader_to_db},
+    parameters::Parameter,
+    faders::fader_to_db,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

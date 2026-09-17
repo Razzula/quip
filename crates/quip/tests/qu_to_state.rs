@@ -5,7 +5,7 @@ use quip::{
 use qu::{
     channels::Channel,
     messages::QuEvent,
-    parameters::fader_to_db,
+    faders::fader_to_db,
 };
 
 #[test]

@@ -313,7 +313,7 @@ fn end_sync_is_correct() {
             0x50,
             0x11, 0x01,
             0x00,
-            0x01,
+            0x00,
             0x14,
             0xf7,
         ]

@@ -52,6 +52,8 @@ function applyChange(
 ): MixerState {
     switch (change.type) {
         case 'Fader':
+            const value = change.value ?? -Infinity;
+
             switch (change.channel.kind) {
                 case 'Input':
                     return {
@@ -59,7 +61,7 @@ function applyChange(
                         inputs: updateChannels(
                             state.inputs,
                             change.channel,
-                            { fader: change.value },
+                            { fader: value },
                         ),
                     }
 
@@ -69,7 +71,7 @@ function applyChange(
                         stereo: updateChannels(
                             state.stereo,
                             change.channel,
-                            { fader: change.value },
+                            { fader: value },
                         ),
                     }
 
@@ -80,7 +82,7 @@ function applyChange(
                         mixes: updateChannels(
                             state.mixes,
                             change.channel,
-                            { fader: change.value },
+                            { fader: value },
                         ),
                     }
             }
@@ -145,7 +147,15 @@ function isMixerChange(value: unknown): value is MixerChange {
     return (
         (change.type === 'Fader' || change.type === 'Mute') &&
         typeof change.channel === 'object' &&
-        change.channel !== null
+        change.channel !== null &&
+        (
+            change.type === 'Mute'
+                ? typeof change.muted === 'boolean'
+                : (
+                    typeof change.value === 'number' ||
+                    change.value === null
+                )
+        )
     )
 }
 

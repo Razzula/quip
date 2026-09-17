@@ -22,19 +22,19 @@ export type ChannelRef =
     | { kind: 'Input'; number: number }
     | { kind: 'Stereo'; number: number }
     | { kind: 'Mix'; number: number }
-    | { kind: 'Lr' }
+    | { kind: 'Lr' };
 
 export type MixerChange =
     | {
-        type: 'Fader'
-        channel: ChannelRef
-        value: number
+        type: 'Fader',
+        channel: ChannelRef,
+        value: number | null,
     }
     | {
-        type: 'Mute'
-        channel: ChannelRef
-        muted: boolean
-    }
+        type: 'Mute',
+        channel: ChannelRef,
+        muted: boolean,
+    };
 
 export function channelRef(name: string): ChannelRef {
     if (name.startsWith('CH')) {

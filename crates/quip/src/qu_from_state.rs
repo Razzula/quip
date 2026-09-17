@@ -2,7 +2,7 @@
 
 use qu::{
     channels::Channel,
-    parameters::{db_to_fader},
+    faders::{db_to_fader},
     protocol,
 };
 

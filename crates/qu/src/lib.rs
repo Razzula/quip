@@ -7,6 +7,7 @@ pub mod messages;
 pub mod parameters;
 pub mod parser;
 pub mod protocol;
+pub mod faders;
 
 pub use channels::{Channel, SendDestination};
 pub use messages::{MidiMessage, QuEvent};

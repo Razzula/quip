@@ -45,7 +45,7 @@ struct AppState {
 pub enum MixerChange {
     Fader {
         channel: ChannelRef,
-        value: f32,
+        value: Option<f32>,
     },
     Mute {
         channel: ChannelRef,
@@ -158,9 +158,15 @@ impl QuHandler {
                     return;
                 };
 
+                let db = qu::faders::fader_to_db(*value);
+
                 Some(MixerChange::Fader {
                     channel,
-                    value: qu::parameters::fader_to_db(*value),
+                    value: if db == f32::NEG_INFINITY {
+                        None
+                    } else {
+                        Some(db)
+                    },
                 })
             }
 
@@ -249,7 +255,9 @@ async fn send_change_to_qu(
 
         match change {
             MixerChange::Fader { value, .. } => {
-                mixer.set_fader(channel, *value);
+                let db = value.unwrap_or(f32::NEG_INFINITY);
+
+                mixer.set_fader(channel, db);
                 qu_from_state::fader(&mixer, channel)
             }
 

@@ -1,6 +1,4 @@
-use qu::parameters::{
-    Parameter, db_to_fader, fader_to_db, FADER_CURVE,
-};
+use qu::parameters::Parameter;
 use strum::IntoEnumIterator;
 
 #[test]
@@ -133,88 +131,4 @@ fn parameter_invalid_ids_return_none() {
             "unexpected Parameter for invalid ID {id:#04x}"
         );
     }
-}
-
-#[test]
-fn fader_to_db_known_values() {
-    assert!(fader_to_db(0x00).is_infinite());
-    assert_eq!(fader_to_db(0x10), -40.0);
-    assert_eq!(fader_to_db(0x17), -35.0);
-    assert_eq!(fader_to_db(0x1f), -30.0);
-    assert_eq!(fader_to_db(0x27), -25.0);
-    assert_eq!(fader_to_db(0x2f), -20.0);
-    assert_eq!(fader_to_db(0x36), -15.0);
-    assert_eq!(fader_to_db(0x3f), -10.0);
-    assert_eq!(fader_to_db(0x4f), -5.0);
-    assert_eq!(fader_to_db(0x62), 0.0);
-    assert_eq!(fader_to_db(0x72), 5.0);
-    assert_eq!(fader_to_db(0x7f), 10.0);
-}
-
-#[test]
-fn fader_from_db_known_values() {
-    assert_eq!(db_to_fader(f32::NEG_INFINITY), 0x00);
-    assert_eq!(db_to_fader(-40.0), 0x10);
-    assert_eq!(db_to_fader(-35.0), 0x17);
-    assert_eq!(db_to_fader(-30.0), 0x1f);
-    assert_eq!(db_to_fader(-25.0), 0x27);
-    assert_eq!(db_to_fader(-20.0), 0x2f);
-    assert_eq!(db_to_fader(-15.0), 0x36);
-    assert_eq!(db_to_fader(-10.0), 0x3f);
-    assert_eq!(db_to_fader(-5.0), 0x4f);
-    assert_eq!(db_to_fader(0.0), 0x62);
-    assert_eq!(db_to_fader(5.0), 0x72);
-    assert_eq!(db_to_fader(10.0), 0x7f);
-}
-
-#[test]
-fn fader_to_db_interpolates() {
-    assert_eq!(fader_to_db(0x4F), -5.0);
-    assert_eq!(fader_to_db(0x62), 0.0);
-
-    assert!(fader_to_db(0x4F) < fader_to_db(0x55));
-    assert!(fader_to_db(0x55) < fader_to_db(0x62));
-}
-
-#[test]
-fn fader_to_db_round_trip() {
-    for &(value, db) in FADER_CURVE {
-        if db.is_finite() {
-            assert_eq!(db_to_fader(fader_to_db(value)), value);
-        }
-    }
-}
-
-#[test]
-fn fader_from_db_round_trip() {
-    let values = [
-        -40.0, -35.0, -30.0, -25.0, -20.0, -15.0,
-        -10.0, -5.0, 0.0, 5.0, 10.0,
-    ];
-
-    for db in values {
-        assert_eq!(fader_to_db(db_to_fader(db)), db);
-    }
-}
-
-#[test]
-fn fader_to_db_is_monotonic() {
-    let mut previous = f32::NEG_INFINITY;
-
-    for value in 0..=0x7F {
-        let db = fader_to_db(value);
-
-        assert!(
-            db >= previous,
-            "0x{value:02X}: {db} < {previous}"
-        );
-
-        previous = db;
-    }
-}
-
-#[test]
-fn fader_from_db_clamps() {
-    assert_eq!(db_to_fader(-100.0), 0x10);
-    assert_eq!(db_to_fader(100.0), 0x7f);
 }

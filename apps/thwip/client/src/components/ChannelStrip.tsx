@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChannelState } from '@quip/quip'
+import {
+    FADER_MAX_POSITION,
+    FADER_MIN,
+    faderPositionToValue,
+    faderValueToPosition,
+} from '../utils/fader'
 import './ChannelStrip.scss'
 
 interface ChannelStripProps {
@@ -25,10 +31,9 @@ export function ChannelStrip({
 }: ChannelStripProps) {
     const fader = channel.fader ?? -Infinity;
     const [displayedFader, setDisplayedFader] = useState(fader);
+
     const dragging = useRef(false);
     const animationFrame = useRef<number | null>(null);
-
-    const faderMin = -50;
 
     useEffect(() => {
         if (dragging.current) {
@@ -36,7 +41,7 @@ export function ChannelStrip({
             return;
         }
 
-        const target = Math.max(fader, faderMin);
+        const target = Math.max(fader, FADER_MIN);
         const start = displayedFader;
 
         if (Math.abs(target - start) < 0.01) {
@@ -86,7 +91,9 @@ export function ChannelStrip({
         };
     }, [fader]);
 
-    const handleFaderChange = (value: number) => {
+    const handleFaderChange = (position: number) => {
+        const value = faderPositionToValue(position);
+
         dragging.current = true;
         setDisplayedFader(value);
         onFaderChange(value);
@@ -96,12 +103,15 @@ export function ChannelStrip({
         dragging.current = false;
     };
 
-    const faderValue = Math.max(faderMin, displayedFader);
+    const faderPosition = faderValueToPosition(displayedFader);
 
     return (
         <div
-            className={`channel-strip${channel.muted ? ' channel-strip--muted' : ''
-                }`}
+            className={`channel-strip${
+                channel.muted
+                    ? ' channel-strip--muted'
+                    : ''
+            }`}
         >
             <div className="channel-strip__name">
                 {channel.name}
@@ -127,12 +137,14 @@ export function ChannelStrip({
                 <input
                     type="range"
                     disabled={disabled}
-                    min={faderMin}
-                    max="10"
-                    step="0.1"
-                    value={faderValue}
+                    min={0}
+                    max={FADER_MAX_POSITION}
+                    step={0.1}
+                    value={faderPosition}
                     onChange={(event) =>
-                        handleFaderChange(Number(event.target.value))
+                        handleFaderChange(
+                            Number(event.target.value),
+                        )
                     }
                     onPointerDown={() => {
                         dragging.current = true;
@@ -144,10 +156,11 @@ export function ChannelStrip({
             </div>
 
             <button
-                className={`channel-strip__mute${channel.muted
-                    ? ' channel-strip__mute--active'
-                    : ''
-                    }`}
+                className={`channel-strip__mute${
+                    channel.muted
+                        ? ' channel-strip__mute--active'
+                        : ''
+                }`}
                 type="button"
                 disabled={disabled}
                 onClick={() => onMuteChange(!channel.muted)}
@@ -155,5 +168,5 @@ export function ChannelStrip({
                 MUTE
             </button>
         </div>
-    )
+    );
 }
