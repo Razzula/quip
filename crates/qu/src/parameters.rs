@@ -5,6 +5,9 @@
 
 use strum_macros::EnumIter;
 
+/// Identifies a parameter exposed by the Qu MIDI protocol.
+///
+/// Each variant corresponds to a numeric parameter ID used in the Qu MIDI protocol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 #[repr(u8)]
 pub enum Parameter {
@@ -93,10 +96,12 @@ pub enum Parameter {
 }
 
 impl Parameter {
+    /// Returns the numeric protocol ID for this parameter.
     pub const fn id(self) -> u8 {
         self as u8
     }
 
+    /// Converts a Qu MIDI parameter ID into its corresponding [`Parameter`].
     pub const fn from_id(id: u8) -> Option<Self> {
         Some(match id {
             0x01 => Self::LfEqGain,

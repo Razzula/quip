@@ -11,7 +11,13 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Channel(pub u8);
 
+/// Identifies a channel, strip, group, or other controllable signal path (CH)
+/// in the Qu MIDI protocol.
+///
+/// The wrapped value is the protocol's numeric channel identifier.
 impl Channel {
+    // Inputs (CH)
+    // 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, ...
     pub fn input(number: u8) -> Option<Self> {
         if (1..=32).contains(&number) {
             Some(Self(0x20 + number - 1))
@@ -21,6 +27,8 @@ impl Channel {
         }
     }
 
+    // Steroes (ST)
+    // 1, 2, 3
     pub fn stereo(number: u8) -> Option<Self> {
         if (1..=3).contains(&number) {
             Some(Self(0x40 + number - 1))
@@ -30,6 +38,8 @@ impl Channel {
         }
     }
 
+    // Mute Groups (MG)
+    // 1, 2, 3, 4
     pub fn mute_group(number: u8) -> Option<Self> {
         if (1..=4).contains(&number) {
             Some(Self(0x50 + number - 1))
@@ -39,8 +49,10 @@ impl Channel {
         }
     }
 
+    // Mixes (MIX)
+    // 1, 2, 3, 4, 5-6, 7-8, 9-10, LR
     pub fn mix(number: u8) -> Option<Self> {
-        if (1..=10).contains(&number) {
+        if (1..=8).contains(&number) {
             Some(Self(0x60 + number - 1))
         }
         else {
@@ -48,10 +60,16 @@ impl Channel {
         }
     }
 
+    // Main LR
+    // NB. This is actually just the 8th MIX,
+    // but is treated as a special case.
     pub fn lr() -> Self {
         Self(0x67)
     }
 
+    // Groups (MIX) [GRP]
+    // 1-2, 3-4, 5-6, 7-8
+    // NB. these are technically also mixes
     pub fn group(number: u8) -> Option<Self> {
         if (1..=4).contains(&number) {
             Some(Self(0x68 + number - 1))
@@ -61,6 +79,10 @@ impl Channel {
         }
     }
 
+    // MATRIX (MIX) [MT]
+    // 1-2, 3-4
+    // NB. these are technically also mixes
+    // NB. NOT QU-16
     pub fn matrix(number: u8) -> Option<Self> {
         match number {
             1 => Some(Self(0x6c)),
@@ -69,6 +91,8 @@ impl Channel {
         }
     }
 
+    // DCA Groups (DG)
+    // 1, 2, 3, 4
     pub fn dca(number: u8) -> Option<Self> {
         if (1..=4).contains(&number) {
             Some(Self(0x10 + number - 1))
@@ -78,6 +102,8 @@ impl Channel {
         }
     }
 
+    // FX Send (CH)
+    // 1, 2, 3, 4
     pub fn fx_send(number: u8) -> Option<Self> {
         if (1..=4).contains(&number) {
             Some(Self(0x00 + number - 1))
@@ -87,6 +113,8 @@ impl Channel {
         }
     }
 
+    // FX Return (CH)
+    // 1, 2, 3, 4
     pub fn fx_return(number: u8) -> Option<Self> {
         if (1..=4).contains(&number) {
             Some(Self(0x08 + number - 1))
@@ -105,6 +133,11 @@ impl Channel {
     }
 }
 
+/// Formats the channel using its human-readable Qu designation.
+///
+/// Known protocol ranges are rendered using their corresponding names,
+/// such as `CH1`, `ST1`, `Mix 1`, ...
+/// Unrecognised channel type: raw hexadecimal identifier.
 impl fmt::Display for Channel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
@@ -124,6 +157,11 @@ impl fmt::Display for Channel {
     }
 }
 
+/// Identifies a possible destination for a Qu channel send.
+///
+/// Each variant corresponds to the destination index used by the Qu MIDI
+/// protocol. [`SendDestination::Unknown`] preserves unrecognised protocol
+/// values so that they can be handled without losing the original index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SendDestination {
     Mix1,
@@ -148,6 +186,10 @@ pub enum SendDestination {
 }
 
 impl SendDestination {
+    /// Converts a Qu send-destination (VX) index into its typed representation.
+    ///
+    /// Known protocol indices are mapped to their corresponding destination.
+    /// Unrecognised indices are preserved as [`SendDestination::Unknown`].
     pub fn from_index(index: u8) -> Self {
         match index {
             0x00 => Self::Mix1,
@@ -172,6 +214,10 @@ impl SendDestination {
         }
     }
 
+    /// Returns the raw protocol index for the send destination.
+    ///
+    /// For [`SendDestination::Unknown`], the original unrecognised index is
+    /// returned unchanged.
     pub const fn index(self) -> u8 {
         match self {
             Self::Mix1 => 0x00,
@@ -197,6 +243,7 @@ impl SendDestination {
     }
 }
 
+/// Formats the send destination using its human-readable Qu designation.
 impl fmt::Display for SendDestination {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let text = match self {

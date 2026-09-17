@@ -10,6 +10,11 @@ use crate::{
     protocol::ACTIVE_SENSE,
 };
 
+/// Tracks the components of the currently assembled Qu NRPN message.
+///
+/// Qu encodes a parameter change across multiple MIDI Control Change
+/// messages, so the parser retains the selected channel, parameter, and
+/// value components until a complete NRPN can be emitted.
 #[derive(Debug, Default)]
 struct NRPNState {
     channel: Option<u8>,
@@ -19,11 +24,14 @@ struct NRPNState {
 }
 
 impl NRPNState {
+    /// Clears the currently accumulated NRPN value components.
+    /// The selected channel and parameter remain unchanged.
     fn reset_value(&mut self) {
         self.value_msb = None;
         self.value_lsb = None;
     }
 
+    /// Clears the complete NRPN parser state.
     fn reset(&mut self) {
         self.channel = None;
         self.parameter = None;
@@ -39,11 +47,22 @@ pub struct Parser {
     nrpn: NRPNState,
 }
 
+/// Parses a stream of MIDI bytes into structured [`QuEvent`] values.
+///
+/// The parser maintains state between calls so that MIDI messages split
+/// across multiple input buffers can be assembled correctly. It handles
+/// running status, SysEx framing, MIDI real-time messages, and the
+/// multi-message NRPN sequences used by the Qu protocol.
 impl Parser {
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Processes a sequence of MIDI bytes and returns all complete events
+    /// produced from them.
+    ///
+    /// Parsing state is retained after the method returns, allowing a message
+    /// that spans multiple calls to be completed by a later call.
     pub fn push(&mut self, bytes: &[u8]) -> Vec<QuEvent> {
         let mut events = Vec::new();
 
@@ -54,6 +73,7 @@ impl Parser {
         events
     }
 
+    /// Processes a single MIDI byte and updates the parser state.
     fn push_byte(&mut self, byte: u8, events: &mut Vec<QuEvent>) {
         // MIDI real-time messages may occur anywhere, including inside
         // another MIDI message or SysEx.
@@ -115,6 +135,11 @@ impl Parser {
         self.handle_message(status, &data, events);
     }
 
+    /// Processes a MIDI status byte and updates the parser's message state.
+    ///
+    /// Channel Voice status bytes establish running status. System messages
+    /// terminate the current running status, while SysEx start is handled by
+    /// entering SysEx parsing mode.
     fn handle_status(&mut self, status: u8) {
         match status {
             0xF0 => {
@@ -143,6 +168,7 @@ impl Parser {
         }
     }
 
+    /// Interprets a complete MIDI message and converts it into a [`QuEvent`].
     fn handle_message(
         &mut self,
         status: u8,
@@ -204,6 +230,7 @@ impl Parser {
         }
     }
 
+    /// Processes a MIDI Control Change message.
     fn handle_cc(
         &mut self,
         midi_channel: u8,
@@ -285,6 +312,7 @@ impl Parser {
         }
     }
 
+    /// Converts a completed Qu NRPN parameter change into a semantic event.
     fn emit_nrpn(
         &self,
         channel: Channel,
@@ -356,6 +384,7 @@ impl Parser {
         }
     }
 
+    /// Processes a MIDI Note On message according to the Qu protocol.
     fn handle_note_on(
         &mut self,
         midi_channel: u8,
@@ -408,6 +437,7 @@ impl Parser {
         }));
     }
 
+    /// Processes a MIDI Note Off message according to the Qu protocol.
     fn handle_note_off(
         &mut self,
         midi_channel: u8,
@@ -429,6 +459,7 @@ impl Parser {
 }
 
 impl MidiMessage {
+    /// Constructs a [`MidiMessage`] from a raw MIDI status byte and data bytes.
     fn from_raw(status: u8, data: &[u8]) -> Self {
         let channel = status & 0x0F;
 

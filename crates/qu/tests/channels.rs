@@ -22,7 +22,7 @@ fn stereo_channels_have_correct_ids() {
 
 #[test]
 fn mix_channels_have_correct_ids() {
-    for number in 1..=10 {
+    for number in 1..=8 {
         assert_eq!(
             Channel::mix(number).unwrap().raw(),
             0x60 + number - 1
