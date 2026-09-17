@@ -1,0 +1,42 @@
+
+--- 2026-09-17T16:42:59.786528 ---
+[16:42:59.786] Connecting to 192.168.0.177:51325...
+
+--- 2026-09-17T16:43:15.161668 ---
+[16:43:15.161] Connecting to 192.168.1.2:51325...
+
+--- 2026-09-17T16:43:33.606990 ---
+[16:43:33.607] Connecting to 192.168.1.2:51325...
+[16:43:33.626] Connected.
+[16:43:36.684] Note On: channel=1 note=67 velocity=7F [90 67 7F]
+[16:43:36.685] Note On: channel=1 note=67 velocity=00 [90 67 00]
+[16:43:41.017] Note On: channel=1 note=67 velocity=3F [90 67 3F]
+[16:43:41.018] Note On: channel=1 note=67 velocity=00 [90 67 00]
+[16:43:45.848] Note On: channel=1 note=60 velocity=7F [90 60 7F]
+[16:43:45.849] Note On: channel=1 note=60 velocity=00 [90 60 00]
+[16:43:46.346] Note On: channel=1 note=60 velocity=3F [90 60 3F]
+[16:43:46.346] Note On: channel=1 note=60 velocity=00 [90 60 00]
+[16:43:47.460] Note On: channel=1 note=61 velocity=3F [90 61 3F]
+[16:43:47.461] Note On: channel=1 note=61 velocity=00 [90 61 00]
+[16:43:47.960] Note On: channel=1 note=61 velocity=7F [90 61 7F]
+[16:43:47.960] Note On: channel=1 note=61 velocity=00 [90 61 00]
+[16:43:48.894] Note On: channel=1 note=62 velocity=3F [90 62 3F]
+[16:43:48.897] Note On: channel=1 note=62 velocity=00 [90 62 00]
+[16:43:49.388] Note On: channel=1 note=62 velocity=7F [90 62 7F]
+[16:43:49.388] Note On: channel=1 note=62 velocity=00 [90 62 00]
+[16:43:50.209] Note On: channel=1 note=63 velocity=3F [90 63 3F]
+[16:43:50.209] Note On: channel=1 note=63 velocity=00 [90 63 00]
+[16:43:50.521] Note On: channel=1 note=63 velocity=7F [90 63 7F]
+[16:43:50.522] Note On: channel=1 note=63 velocity=00 [90 63 00]
+[16:43:51.425] Note On: channel=1 note=64 velocity=3F [90 64 3F]
+[16:43:51.428] Note On: channel=1 note=64 velocity=00 [90 64 00]
+[16:43:51.744] Note On: channel=1 note=64 velocity=7F [90 64 7F]
+[16:43:51.744] Note On: channel=1 note=64 velocity=00 [90 64 00]
+[16:43:52.767] Note On: channel=1 note=65 velocity=3F [90 65 3F]
+[16:43:52.767] Note On: channel=1 note=65 velocity=00 [90 65 00]
+[16:43:53.176] Note On: channel=1 note=65 velocity=7F [90 65 7F]
+[16:43:53.177] Note On: channel=1 note=65 velocity=00 [90 65 00]
+[16:43:53.996] Note On: channel=1 note=66 velocity=3F [90 66 3F]
+[16:43:53.997] Note On: channel=1 note=66 velocity=00 [90 66 00]
+[16:43:54.212] Note On: channel=1 note=66 velocity=7F [90 66 7F]
+[16:43:54.213] Note On: channel=1 note=66 velocity=00 [90 66 00]

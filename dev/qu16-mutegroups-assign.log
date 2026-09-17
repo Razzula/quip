@@ -1,0 +1,8 @@
+
+--- 2026-09-17T16:46:21.099750 ---
+[16:46:21.099] Connecting to 192.168.1.2:51325...
+[16:46:21.120] Connected.
+[16:46:37.926] CH1 Mute Group Assignment: raw 00 (MIDI 00) [B0 63 20 62 5C 06 00 26 00]
+[16:46:42.139] CH1 Mute Group Assignment: raw 40 (MIDI 40) [B0 63 20 62 5C 06 40 26 00]
+[16:46:50.126] CH11 Mute Group Assignment: raw 01 (MIDI 01) [B0 63 2A 62 5C 06 01 26 00]
+[16:46:50.750] CH11 Mute Group Assignment: raw 41 (MIDI 41) [B0 63 2A 62 5C 06 41 26 00]

@@ -4,7 +4,7 @@ import socket
 from datetime import datetime
 
 
-HOST = '192.168.0.177'
+HOST = '192.168.1.2'
 PORT = 51325
 LOG_FILE = 'quip.log'
 
@@ -604,8 +604,8 @@ def main() -> None:
                 for event in processor.process(data):
                     log(event, log_file)
 
-            log('Requesting system state...', log_file)
-            sock.sendall(GET_SYSTEM_STATE)
+            # log('Requesting system state...', log_file)
+            # sock.sendall(GET_SYSTEM_STATE)
 
             while True:
                 data = sock.recv(4096)

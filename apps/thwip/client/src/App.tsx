@@ -22,10 +22,23 @@ function channelName(channel: ChannelRef): string {
             return `ST${channel.number}`
 
         case 'Mix':
-            if (channel.number === 5) return 'MIX5-6'
-            if (channel.number === 7) return 'MIX7-8'
-            if (channel.number === 9) return 'MIX9-10'
-            return `MIX${channel.number}`
+            switch (channel.number) {
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                    return `MIX${channel.number}`
+                case 5:
+                    return 'MIX5-6'
+                case 6:
+                    return 'MIX7-8'
+                case 7:
+                    return 'MIX9-10'
+                case 8:
+                    return 'LR'
+                default:
+                    throw new Error(`Unknown mix: ${channel.number}`)
+            }
 
         case 'Lr':
             return 'LR'
@@ -276,19 +289,23 @@ function App() {
             }
         }
 
-        if (channel.name.startsWith('MIX')) {
-            return {
-                kind: 'Mix',
-                number: Number(
-                    channel.name.slice(3).split('-')[0],
-                ),
-            }
-        }
-
-        if (channel.name === 'LR') {
-            return {
-                kind: 'Lr',
-            }
+        switch (channel.name) {
+            case 'MIX1':
+                return { kind: 'Mix', number: 1 }
+            case 'MIX2':
+                return { kind: 'Mix', number: 2 }
+            case 'MIX3':
+                return { kind: 'Mix', number: 3 }
+            case 'MIX4':
+                return { kind: 'Mix', number: 4 }
+            case 'MIX5-6':
+                return { kind: 'Mix', number: 5 }
+            case 'MIX7-8':
+                return { kind: 'Mix', number: 6 }
+            case 'MIX9-10':
+                return { kind: 'Mix', number: 7 }
+            case 'LR':
+                return { kind: 'Lr' }
         }
 
         throw new Error(`Unknown channel: ${channel.name}`)

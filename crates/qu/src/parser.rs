@@ -392,39 +392,33 @@ impl Parser {
         velocity: u8,
         events: &mut Vec<QuEvent>,
     ) {
-        // Qu channel mutes.
-        //
-        // 0x20..=0x3F = Input 1..32.
-        if (0x20..=0x3F).contains(&note) {
-            let channel = Channel(note);
-
+        // The note is the Qu channel identifier:
+        //   0x20..=0x3F = Input 1..32
+        //   0x40..=0x42 = Stereo 1..3
+        //   0x50..=0x53 = Mute Groups 1..4
+        //   0x60..=0x67 = Mix 1..9-10 and LR
+        //   0x68..=0x6B = Groups 1-2..7-8
+        //   0x6C..=0x6D = Matrix 1-2..3-4
+        let is_qu_channel = matches!(
+            note,
+            0x20..=0x3F
+            | 0x40..=0x42
+            | 0x50..=0x53
+            | 0x60..=0x6D
+        );
+        
+        if is_qu_channel {
+            if velocity == 0 {
+                return;
+            }
+            
             // The Qu protocol defines:
             //   0x01..=0x3F = mute off
             //   0x40..=0x7F = mute on
             //   0x00       = ignored
-            if velocity == 0 {
-                return;
-            }
-
             events.push(QuEvent::Mute {
-                channel,
-                muted: velocity >= 0x40,
-            });
-
-            return;
-        }
-
-        // Qu PAFL select.
-        //
-        // 0x40..=0x5F = PAFL notes.
-        if (0x40..=0x5F).contains(&note) {
-            if velocity == 0 {
-                return;
-            }
-
-            events.push(QuEvent::Pafl {
                 channel: Channel(note),
-                enabled: true,
+                muted: velocity >= 0x40,
             });
 
             return;
