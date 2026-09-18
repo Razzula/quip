@@ -42,6 +42,12 @@ pub const SYSEX_ALL_CALL: u8 = 0x7f;
 pub const SYSEX_GET_SYSTEM_STATE: u8 = 0x10;
 /// SysEx command: End Sync.
 pub const SYSEX_END_SYNC: u8 = 0x14;
+/// SysEx command: Get Channel Name.
+pub const SYSEX_GET_CHANNEL_NAME: u8 = 0x01;
+/// SysEx command: Channel Name response.
+pub const SYSEX_CHANNEL_NAME: u8 = 0x02;
+/// SysEx command: Set Channel Name.
+pub const SYSEX_SET_CHANNEL_NAME: u8 = 0x03;
 
 /// Standard Qu SysEx header.
 ///
@@ -58,53 +64,40 @@ pub const SYSEX_HEADER: [u8; 8] = [
     0x00,
 ];
 
+pub fn sysex(body: &[u8]) -> Vec<u8> {
+    let mut message = Vec::with_capacity(8 + body.len());
+    message.extend_from_slice(&SYSEX_HEADER);
+    message.extend_from_slice(body);
+    message
+}
+
 /// Get System State request for a normal MIDI connection.
-pub const GET_SYSTEM_STATE: [u8; 12] = [
-    0xf0,
-    0x00,
-    0x00,
-    0x1a,
-    0x50,
-    0x11,
-    0x01,
-    0x00,
-    0x7f,
-    0x10,
-    0x00, // iPad flag (`0x00` = normal MIDI connection, `0x01` = Qu-Pad connection)
-    0xf7,
-];
-
-/// End Sync message.
-pub const END_SYNC: [u8; 11] = [
-    0xf0,
-    0x00,
-    0x00,
-    0x1a,
-    0x50,
-    0x11,
-    0x01,
-    0x00,
-    0x00, // NB. this was required by the real Qu16 -- TODO check why 0x00 was wrong
-    0x14,
-    0xf7,
-];
-
-/// Encode a Get System State request.
-pub fn get_system_state_with_ipad(ipad: bool) -> [u8; 12] {
-    [
-        0xf0,
-        MANUFACTURER_ID[0],
-        MANUFACTURER_ID[1],
-        MANUFACTURER_ID[2],
-        QU_PRODUCT_ID,
-        PROTOCOL_VERSION[0],
-        PROTOCOL_VERSION[1],
-        0x00,
+pub fn get_system_state() -> Vec<u8> {
+    sysex(&[
         SYSEX_ALL_CALL,
         SYSEX_GET_SYSTEM_STATE,
-        u8::from(ipad), // `ipad` should be `false` for a normal MIDI connection and `true` when emulating Qu-Pad.
+        0x00, // iPad flag
         0xf7,
-    ]
+    ])
+}
+
+/// End Sync message.
+pub fn end_sync() -> Vec<u8> {
+    sysex(&[
+        0x00,
+        SYSEX_END_SYNC,
+        0xf7,
+    ])
+}
+
+/// Encode a Get System State request.
+pub fn get_system_state_with_ipad(ipad: bool) -> Vec<u8> {
+    sysex(&[
+        SYSEX_ALL_CALL,
+        SYSEX_GET_SYSTEM_STATE,
+        u8::from(ipad),
+        0xf7,
+    ])
 }
 
 /// Encode a System State response.
@@ -133,6 +126,42 @@ pub fn system_state_response(
         0xf7,
     ]);
 
+    message
+}
+
+/// Get Channel Name request.
+pub fn get_channel_name(channel: Channel) -> Vec<u8> {
+    sysex(&[
+        0x00,
+        SYSEX_GET_CHANNEL_NAME,
+        channel.raw() & 0x7f,
+        0xf7,
+    ])
+}
+
+/// Channel Name response.
+pub fn channel_name(channel: Channel, name: &[u8]) -> Vec<u8> {
+    let mut message = sysex(&[
+        0x00,
+        SYSEX_CHANNEL_NAME,
+        channel.raw() & 0x7f,
+    ]);
+
+    message.extend_from_slice(name);
+    message.push(0xf7);
+    message
+}
+
+/// Set Channel Name request.
+pub fn set_channel_name(channel: Channel, name: &[u8]) -> Vec<u8> {
+    let mut message = sysex(&[
+        0x00, // MIDI channel
+        SYSEX_SET_CHANNEL_NAME,
+        channel.raw() & 0x7f,
+    ]);
+
+    message.extend_from_slice(name);
+    message.push(0xf7);
     message
 }
 
@@ -299,9 +328,4 @@ pub const fn scene_recall(scene: u8) -> [u8; 8] {
         0xc0,
         scene & 0x7f,
     ]
-}
-
-/// Return the standard non-iPad Get System State request.
-pub const fn get_system_state() -> [u8; 12] {
-    GET_SYSTEM_STATE
 }

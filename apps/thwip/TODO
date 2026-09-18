@@ -1,10 +1,10 @@
 TEST
+- CLIENT MIX mute affects QU, but QU MIX mute doesn't affect CLIENT
 - CLIENT ST mute affects QU, but QU MIX mute doesn't affect CLIENT
+- CLIENT L/R fader affects QU, but QU L/R fader doesn't affect CLIENT
 - CLIENT fader -inf only sets QU to -40
 
 ISSUES
-- CLIENT L/R fader affects QU, but QU L/R fader doesn't affect CLIENT
-- CLIENT MIX mute affects QU, but QU MIX mute doesn't affect CLIENT
 - QU fader up from -inf sets CLIENT to NaN temporarily (but then resolves)
 
 TODOs

@@ -306,7 +306,7 @@ fn system_state_response_masks_7_bit_fields() {
 #[test]
 fn end_sync_is_correct() {
     assert_eq!(
-        protocol::END_SYNC,
+        protocol::end_sync(),
         [
             0xf0,
             0x00, 0x00, 0x1a,

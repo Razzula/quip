@@ -381,6 +381,7 @@ dependencies = [
 name = "qu"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "strum",
  "strum_macros",
 ]

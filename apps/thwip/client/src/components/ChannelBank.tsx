@@ -25,7 +25,7 @@ export function ChannelBank({
         >
             {channels.map((channel) => (
                 <ChannelStrip
-                    key={channel.name}
+                    key={channel.id}
                     channel={channel}
                     onFaderChange={(value) =>
                         onFaderChange(channel, value)

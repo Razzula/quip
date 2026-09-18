@@ -6,9 +6,11 @@
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// A Qu MIDI channel/strip identifier.
 /// These values are the CH values used by the Qu MIDI protocol.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Channel(pub u8);
 
 /// Identifies a channel, strip, group, or other controllable signal path (CH)

@@ -1,182 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+    channelRef,
     DEFAULT_STATE,
-    type ChannelRef,
     type ChannelState,
     type MixerChange,
     type MixerState,
+    type MuteGroupState,
 } from '@quip/quip'
 import { ChannelBank } from './components/ChannelBank'
 import { MixerSection } from './components/MixerSection'
 
 import './App.scss'
+import { applyChange, isMixerChange, isMixerState, patchState } from './utils/qu'
+import { MuteButton } from './components/MuteButton'
+import { parseMessage } from './utils/ipc'
 
 const initialState: MixerState = structuredClone(DEFAULT_STATE)
-
-function channelName(channel: ChannelRef): string {
-    switch (channel.kind) {
-        case 'Input':
-            return `CH${channel.number}`
-
-        case 'Stereo':
-            return `ST${channel.number}`
-
-        case 'Mix':
-            switch (channel.number) {
-                case 1:
-                case 2:
-                case 3:
-                case 4:
-                    return `MIX${channel.number}`
-                case 5:
-                    return 'MIX5-6'
-                case 6:
-                    return 'MIX7-8'
-                case 7:
-                    return 'MIX9-10'
-                case 8:
-                    return 'LR'
-                default:
-                    throw new Error(`Unknown mix: ${channel.number}`)
-            }
-
-        case 'Lr':
-            return 'LR'
-    }
-}
-
-function updateChannels(
-    channels: ChannelState[],
-    channel: ChannelRef,
-    update: Partial<ChannelState>,
-): ChannelState[] {
-    const name = channelName(channel)
-
-    return channels.map((item) =>
-        item.name === name
-            ? { ...item, ...update }
-            : item,
-    )
-}
-
-function applyChange(
-    state: MixerState,
-    change: MixerChange,
-): MixerState {
-    switch (change.type) {
-        case 'Fader':
-            const value = change.value ?? -Infinity;
-
-            switch (change.channel.kind) {
-                case 'Input':
-                    return {
-                        ...state,
-                        inputs: updateChannels(
-                            state.inputs,
-                            change.channel,
-                            { fader: value },
-                        ),
-                    }
-
-                case 'Stereo':
-                    return {
-                        ...state,
-                        stereo: updateChannels(
-                            state.stereo,
-                            change.channel,
-                            { fader: value },
-                        ),
-                    }
-
-                case 'Mix':
-                case 'Lr':
-                    return {
-                        ...state,
-                        mixes: updateChannels(
-                            state.mixes,
-                            change.channel,
-                            { fader: value },
-                        ),
-                    }
-            }
-
-        case 'Mute':
-            switch (change.channel.kind) {
-                case 'Input':
-                    return {
-                        ...state,
-                        inputs: updateChannels(
-                            state.inputs,
-                            change.channel,
-                            { muted: change.muted },
-                        ),
-                    }
-
-                case 'Stereo':
-                    return {
-                        ...state,
-                        stereo: updateChannels(
-                            state.stereo,
-                            change.channel,
-                            { muted: change.muted },
-                        ),
-                    }
-
-                case 'Mix':
-                case 'Lr':
-                    return {
-                        ...state,
-                        mixes: updateChannels(
-                            state.mixes,
-                            change.channel,
-                            { muted: change.muted },
-                        ),
-                    }
-            }
-    }
-}
-
-function isMixerState(value: unknown): value is MixerState {
-    if (!value || typeof value !== 'object') {
-        return false
-    }
-
-    const state = value as Record<string, unknown>
-
-    return (
-        Array.isArray(state.inputs) &&
-        Array.isArray(state.stereo) &&
-        Array.isArray(state.mixes)
-    )
-}
-
-function isMixerChange(value: unknown): value is MixerChange {
-    if (!value || typeof value !== 'object') {
-        return false
-    }
-
-    const change = value as Record<string, unknown>
-
-    return (
-        (change.type === 'Fader' || change.type === 'Mute') &&
-        typeof change.channel === 'object' &&
-        change.channel !== null &&
-        (
-            change.type === 'Mute'
-                ? typeof change.muted === 'boolean'
-                : (
-                    typeof change.value === 'number' ||
-                    change.value === null
-                )
-        )
-    )
-}
 
 function App() {
     const [state, setState] = useState<MixerState>(initialState)
 
     const socketRef = useRef<WebSocket | null>(null)
     const [isConnected, setIsConnected] = useState(false)
+
+    console.log(state);
 
     useEffect(() => {
         let retryTimeout: ReturnType<typeof setTimeout> | null = null
@@ -225,11 +72,11 @@ function App() {
                 console.log('WebSocket message received:', event.data)
 
                 try {
-                    const message: unknown = JSON.parse(event.data)
+                    const message = parseMessage(event.data);
 
                     if (isMixerState(message)) {
                         console.log('[STATE] Received full mixer state')
-                        setState(message)
+                        setState((current) => patchState(current, message))
                         return
                     }
 
@@ -274,43 +121,6 @@ function App() {
         socket.send(JSON.stringify(change))
     }
 
-    function channelRef(channel: ChannelState): ChannelRef {
-        if (channel.name.startsWith('CH')) {
-            return {
-                kind: 'Input',
-                number: Number(channel.name.slice(2)),
-            }
-        }
-
-        if (channel.name.startsWith('ST')) {
-            return {
-                kind: 'Stereo',
-                number: Number(channel.name.slice(2)),
-            }
-        }
-
-        switch (channel.name) {
-            case 'MIX1':
-                return { kind: 'Mix', number: 1 }
-            case 'MIX2':
-                return { kind: 'Mix', number: 2 }
-            case 'MIX3':
-                return { kind: 'Mix', number: 3 }
-            case 'MIX4':
-                return { kind: 'Mix', number: 4 }
-            case 'MIX5-6':
-                return { kind: 'Mix', number: 5 }
-            case 'MIX7-8':
-                return { kind: 'Mix', number: 6 }
-            case 'MIX9-10':
-                return { kind: 'Mix', number: 7 }
-            case 'LR':
-                return { kind: 'Lr' }
-        }
-
-        throw new Error(`Unknown channel: ${channel.name}`)
-    }
-
     function handleFaderChange(
         channel: ChannelState,
         value: number,
@@ -323,7 +133,7 @@ function App() {
     }
 
     function handleMuteChange(
-        channel: ChannelState,
+        channel: ChannelState | MuteGroupState,
         muted: boolean,
     ) {
         sendChange({
@@ -341,13 +151,37 @@ function App() {
 
                     <span
                         className={`mixer__connection${isConnected
-                            ? ' mixer__connection--connected'
-                            : ' mixer__connection--connecting'
+                                ? ' mixer__connection--connected'
+                                : ' mixer__connection--connecting'
                             }`}
                     >
                         <span className="mixer__connection-indicator" />
                         {isConnected ? 'Connected' : 'Not Connected'}
                     </span>
+                </div>
+
+                <div className="mixer__mute-groups">
+                    {state.muteGroups.map((muteGroup) => (
+                        <div
+                            className={`mixer__mute-group${muteGroup.muted
+                                    ? ' mixer__mute-group--muted'
+                                    : ''
+                                }`}
+                            key={muteGroup.id}
+                        >
+                            <div className="channel-strip__name">
+                                {muteGroup.name}
+                            </div>
+
+                            <MuteButton
+                                muted={muteGroup.muted}
+                                onChange={(muted) =>
+                                    handleMuteChange(muteGroup, muted)
+                                }
+                                disabled={!isConnected}
+                            />
+                        </div>
+                    ))}
                 </div>
             </header>
 

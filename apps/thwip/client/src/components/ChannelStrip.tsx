@@ -7,6 +7,7 @@ import {
     faderValueToPosition,
 } from '../utils/fader'
 import './ChannelStrip.scss'
+import { MuteButton } from './MuteButton';
 
 interface ChannelStripProps {
     channel: ChannelState;
@@ -114,7 +115,7 @@ export function ChannelStrip({
             }`}
         >
             <div className="channel-strip__name">
-                {channel.name}
+                {channel.name ?? channel.id}
             </div>
 
             <div className="channel-strip__value">
@@ -155,18 +156,11 @@ export function ChannelStrip({
                 />
             </div>
 
-            <button
-                className={`channel-strip__mute${
-                    channel.muted
-                        ? ' channel-strip__mute--active'
-                        : ''
-                }`}
-                type="button"
+            <MuteButton
+                muted={channel.muted}
+                onChange={onMuteChange}
                 disabled={disabled}
-                onClick={() => onMuteChange(!channel.muted)}
-            >
-                MUTE
-            </button>
+            />
         </div>
     );
 }

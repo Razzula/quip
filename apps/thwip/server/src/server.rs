@@ -60,6 +60,7 @@ pub enum ChannelRef {
     Stereo(u8),
     Mix(u8),
     Lr,
+    MuteGroup(u8),
 }
 
 impl ChannelRef {
@@ -71,32 +72,42 @@ impl ChannelRef {
             Self::Stereo(number) => Channel::stereo(number),
             Self::Mix(number) => Channel::mix(number),
             Self::Lr => Some(Channel::lr()),
+            Self::MuteGroup(number) => Channel::mute_group(number),
         }
     }
 
     fn from_channel(channel: qu::channels::Channel) -> Option<Self> {
         use qu::channels::Channel;
 
+        // CH
         for number in 1..=16 {
             if Channel::input(number) == Some(channel) {
                 return Some(Self::Input(number));
             }
         }
 
+        // ST
         for number in 1..=3 {
             if Channel::stereo(number) == Some(channel) {
                 return Some(Self::Stereo(number));
             }
         }
 
-        for number in 1..=10 {
+        // MIX
+        for number in 1..=8 {
             if Channel::mix(number) == Some(channel) {
                 return Some(Self::Mix(number));
             }
         }
-
         if Channel::lr() == channel {
             return Some(Self::Lr);
+        }
+
+        // MG
+        for number in 1..=4 {
+            if Channel::mute_group(number) == Some(channel) {
+                return Some(Self::MuteGroup(number));
+            }
         }
 
         None
@@ -203,11 +214,11 @@ impl QuHandler {
         let is_end_sync = matches!(
             &event,
             QuEvent::SysEx(data)
-                if data.as_slice() == qu::protocol::END_SYNC
+                if data.as_slice() == qu::protocol::end_sync()
         );
         if let QuEvent::SysEx(data) = &event {
             println!("[QU] SysEx received: {:02X?}", data);
-            println!("[QU] SysEx expected: {:02X?}", qu::protocol::END_SYNC);
+            println!("[QU] SysEx expected: {:02X?}", qu::protocol::end_sync());
         }
         if is_end_sync {
             println!("[QU] Initial system state received");

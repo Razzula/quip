@@ -5,9 +5,9 @@ edition = "2021"
 
 [dependencies]
 qu = { path = "../qu" }
-tokio = { version = "1", features = ["net", "io-util", "rt", "macros"] }
 serde = { version = "1", features = ["derive"] }
 socket2 = "0.6"
+tokio = { version = "1", features = ["net", "io-util", "rt", "macros"] }
 
 [dev-dependencies]
 serde_json = "1"

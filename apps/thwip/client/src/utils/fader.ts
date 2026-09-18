@@ -37,7 +37,8 @@ export function faderPositionToValue(position: number): number {
     // There is no numerical interpolation to -∞.
     // The actual Qu-16 taper can be implemented here.
     if (to === -Infinity) {
-        return from;
+        const finiteMin = FADER_MIN;
+        return from + (finiteMin - from) * fraction;
     }
 
     return from + (to - from) * fraction;
@@ -60,11 +61,12 @@ export function faderValueToPosition(value: number): number {
         const to = FADER_POSITIONS[index + 1];
 
         if (to === -Infinity) {
-            if (value <= from) {
-                return FADER_MAX_POSITION - index * 10;
+            if (value <= FADER_MIN) {
+                return 1;
             }
 
-            continue;
+            const fraction = (from - value) / (from - FADER_MIN);
+            return FADER_MAX_POSITION - (index * 10 + fraction * 10);
         }
 
         if (value <= from && value >= to) {
@@ -76,4 +78,3 @@ export function faderValueToPosition(value: number): number {
 
     return 0;
 }
-

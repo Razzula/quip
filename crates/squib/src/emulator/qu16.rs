@@ -13,8 +13,8 @@ use qu::{
     protocol::{
         self,
         ACTIVE_SENSE,
-        END_SYNC,
-        GET_SYSTEM_STATE,
+        end_sync,
+        get_system_state,
         QU16_BOX_ID,
     },
 };
@@ -101,7 +101,7 @@ async fn handle_sysex(
     state: &MixerState,
     message: &[u8],
 ) -> io::Result<()> {
-    if message == GET_SYSTEM_STATE {
+    if message == get_system_state() {
         println!("[qu-16 ] RX: Get System State");
         send_system_state(stream, state).await?;
     }
@@ -129,7 +129,7 @@ async fn send_system_state(
     send_current_state(stream, state).await?;
 
     // END SYNC
-    write_all(stream, &END_SYNC).await?;
+    write_all(stream, &end_sync()).await?;
 
     Ok(())
 }
@@ -138,7 +138,7 @@ async fn send_current_state(
     stream: &mut TcpStream,
     state: &MixerState,
 ) -> io::Result<()> {
-    // CHANNEL STATE [CH 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16, ST 1,2,3]
+    // CHANNEL STATE [CH 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16, ST 1,2,3, MIX 1,2,3,4,5-6,7-8,9-10,LR]
     send_channel_state(stream, state).await?;
 
     // BASIC GROUP STATE [GRP1,2,3,4]
@@ -155,19 +155,14 @@ async fn send_current_state(
             // fx pre/post
         // mute group assignments (4)
         // dca assignments (4)
-
-    // BASIC MIX STATE [MIX1,2,3,4,5-6,7-8,9-10,LR]
-        // fader
-        // mute
-        // mute group assignments (4)
-        // dca assignments (4)
-
+        
     // BASIC ??? STATE [0x00,0x01]
         // fader
         // mute group assignments (8)
         // dca assignments (4)
-
-    // mute group state [1,2,3,4]
+        
+    // MUTE GROUPS / DCAs
+    send_mute_group_state(stream, state).await?;
     // DCA fader [1,2,3,4]
 
     // CHANNEL PEQ [CH1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16, ST1,2,3, GRP1,2,3,4, MIX1,2,3,4,5-6,7-8,9-10,LR]
@@ -251,6 +246,7 @@ async fn send_current_state(
 
     // CHANNEL NAMES [CH1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16, GRP1,2,3,4, MIX1,2,3,4,5-6,7-8,9-10,LR, 0x00,0x01, DCA1,2,3,4, MUTEGRP1,2,3,4]
         // F0 00 00 1A 50 11 01 00 00 02 CH NAME... F7
+    send_channel_names(stream, state).await?;
 
     Ok(())
 }
@@ -274,7 +270,7 @@ async fn send_channel_state(
         // lr assignment
         // lr pan
 
-        // mute
+        // mutestate
         write_all(
             stream,
             &qu_from_state::mute(&state, channel).unwrap(),
@@ -285,15 +281,14 @@ async fn send_channel_state(
             // mix send
             // mix assignment
             // mix pre/post
+        
         // mute group assignments
+        send_mute_group_assigns(stream, state, &channel).await?;
         // dca assignments
     }
 
-    // -------------------------------------------------------------------------
-    // Stereo 1-3
-    // -------------------------------------------------------------------------
-
     for number in 1..=3 {
+        // ST 1,2,3
         let channel = Channel::stereo(number).unwrap();
 
         // fader
@@ -309,13 +304,13 @@ async fn send_channel_state(
             &qu_from_state::mute(&state, channel).unwrap(),
         )
         .await?;
+
+        // mute group assignments
+        send_mute_group_assigns(stream, state, &channel).await?;
     }
 
-    // -------------------------------------------------------------------------
-    // Mix 1-10 + Main LR
-    // -------------------------------------------------------------------------
-
     for number in 1..=8 {
+        // MIX 1,2,3,4,5-6,7-8,9-10,LR
         let channel = Channel::mix(number).unwrap();
 
         // fader
@@ -329,6 +324,90 @@ async fn send_channel_state(
         write_all(
             stream,
             &qu_from_state::mute(&state, channel).unwrap(),
+        )
+        .await?;
+
+        // mute group assignments
+        send_mute_group_assigns(stream, state, &channel).await?;
+    }
+
+    Ok(())
+}
+
+async fn send_mute_group_state(
+    stream: &mut TcpStream,
+    state: &MixerState,
+) -> io::Result<()> {
+    for number in 1..=4 {
+        // MG 1,2,3,4
+        let channel = Channel::mute_group(number).unwrap();
+
+        // mute state
+        write_all(
+            stream,
+            &qu_from_state::mute(&state, channel).unwrap(),
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn send_mute_group_assigns(
+    stream: &mut TcpStream,
+    state: &MixerState,
+    channel: &Channel,
+) -> io::Result<()> {
+    // for number in 1..=4 {
+    //     // MG 1,2,3,4
+    //     // mute state
+    //     write_all(
+    //         stream,
+    //         &qu_from_state::mute(&state, *channel).unwrap(),
+    //     )
+    //     .await?;
+    // }
+
+    Ok(())
+}
+
+async fn send_channel_names(
+    stream: &mut TcpStream,
+    state: &MixerState,
+) -> io::Result<()> {
+    // SYSEX CHANNEL NAMES
+    for number in 1..=16 {
+        // CH 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
+        let channel = Channel::input(number).unwrap();
+
+        // fader
+        write_all(
+            stream,
+            &qu_from_state::name(&state, channel).unwrap(),
+        )
+        .await?;
+    }
+
+    for number in 1..=3 {
+        // ST 1,2,3
+        let channel = Channel::stereo(number).unwrap();
+
+        // fader
+        write_all(
+            stream,
+            &qu_from_state::name(&state, channel).unwrap(),
+        )
+        .await?;
+    }
+
+    for number in 1..=8 {
+        // MIX 1,2,3,4,5-6,7-8,9-10,LR
+        let channel = Channel::mix(number).unwrap();
+
+        // fader
+        write_all(
+            stream,
+            &qu_from_state::name(&state, channel).unwrap(),
         )
         .await?;
     }

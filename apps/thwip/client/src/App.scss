@@ -35,6 +35,7 @@ input {
         align-items: center;
         justify-content: space-between;
         margin-bottom: 24px;
+        gap: 2rem;
 
         h1 {
             margin: 0;
@@ -87,6 +88,19 @@ input {
                 background 500ms ease,
                 border-color 500ms ease;
         }
+    }
+
+    &__mute-groups {
+        display: flex;
+        flex-direction: row;
+        gap: 1rem;
+    }
+
+    &__mute-group {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
     }
 }
 
