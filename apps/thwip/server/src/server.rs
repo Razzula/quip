@@ -28,7 +28,7 @@ use qu::{messages::QuEvent, protocol::TCP_PORT};
 use quip::{
     qu_to_state,
     qu_from_state,
-    state::MixerState,
+    state::{MixerState, ChannelRef},
     client::discovery::discover,
 };
 
@@ -51,67 +51,10 @@ pub enum MixerChange {
         channel: ChannelRef,
         muted: bool,
     },
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "number")]
-pub enum ChannelRef {
-    Input(u8),
-    Stereo(u8),
-    Mix(u8),
-    Lr,
-    MuteGroup(u8),
-}
-
-impl ChannelRef {
-    fn channel(self) -> Option<qu::channels::Channel> {
-        use qu::channels::Channel;
-
-        match self {
-            Self::Input(number) => Channel::input(number),
-            Self::Stereo(number) => Channel::stereo(number),
-            Self::Mix(number) => Channel::mix(number),
-            Self::Lr => Some(Channel::lr()),
-            Self::MuteGroup(number) => Channel::mute_group(number),
-        }
-    }
-
-    fn from_channel(channel: qu::channels::Channel) -> Option<Self> {
-        use qu::channels::Channel;
-
-        // CH
-        for number in 1..=16 {
-            if Channel::input(number) == Some(channel) {
-                return Some(Self::Input(number));
-            }
-        }
-
-        // ST
-        for number in 1..=3 {
-            if Channel::stereo(number) == Some(channel) {
-                return Some(Self::Stereo(number));
-            }
-        }
-
-        // MIX
-        for number in 1..=8 {
-            if Channel::mix(number) == Some(channel) {
-                return Some(Self::Mix(number));
-            }
-        }
-        if Channel::lr() == channel {
-            return Some(Self::Lr);
-        }
-
-        // MG
-        for number in 1..=4 {
-            if Channel::mute_group(number) == Some(channel) {
-                return Some(Self::MuteGroup(number));
-            }
-        }
-
-        None
-    }
+    Name {
+        channel: ChannelRef,
+        name: String,
+    },
 }
 
 struct ClientHandler {
@@ -175,7 +118,7 @@ impl QuHandler {
                     channel,
                     value: if db == f32::NEG_INFINITY {
                         None
-                    } else {
+                    } else {    
                         Some(db)
                     },
                 })
@@ -195,6 +138,21 @@ impl QuHandler {
                     muted: *muted,
                 })
             }
+
+            QuEvent::Name { channel, name } => {
+            let Some(channel) = ChannelRef::from_channel(*channel) else {
+                eprintln!(
+                    "[RX QU] Unsupported name channel: {:?}",
+                    channel
+                );
+                return;
+            };
+
+            Some(MixerChange::Name {
+                channel,
+                name: name.clone(),
+            })
+        }
 
             QuEvent::ActiveSense => None,
 
@@ -258,6 +216,11 @@ async fn send_change_to_qu(
 
             channel
         }
+
+        MixerChange::Name { .. } => {
+            eprintln!("[QU TX] Name changes are not yet supported");
+            return Ok(());
+        }
     };
 
     let message = {
@@ -275,6 +238,10 @@ async fn send_change_to_qu(
             MixerChange::Mute { muted, .. } => {
                 mixer.set_muted(channel, *muted);
                 qu_from_state::mute(&mixer, channel)
+            }
+
+            MixerChange::Name { .. } => {
+                return Ok(());
             }
         }
     };

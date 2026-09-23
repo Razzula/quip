@@ -101,7 +101,7 @@ impl Parser {
                 let data = std::mem::take(sysex);
                 self.sysex = None;
 
-                events.push(QuEvent::SysEx(data));
+                self.handle_sysex(data, events);
             }
 
             return;
@@ -310,6 +310,56 @@ impl Parser {
                 }));
             }
         }
+    }
+
+    fn handle_sysex(
+        &mut self,
+        data: Vec<u8>,
+        events: &mut Vec<QuEvent>,
+    ) {
+        // Qu channel-name SysEx:
+        //
+        // F0 00 00 1A 50 11 01 00 00 02
+        //    [channel ID] [name bytes...] F7
+        //
+        // The channel ID uses the same numbering as the Qu channel
+        // identifiers elsewhere in the protocol.
+
+        const PREFIX: &[u8] = &[
+            0xF0, 0x00, 0x00, 0x1A,
+            0x50, 0x11, 0x01, 0x00, 0x00, 0x02,
+        ];
+
+        if data.len() >= PREFIX.len() + 2
+            && data.starts_with(PREFIX)
+            && data.last() == Some(&0xF7)
+        {
+            let channel_id = data[PREFIX.len()];
+            let name_bytes = &data[PREFIX.len() + 1..data.len() - 1];
+
+            if let Some(end) = name_bytes.iter().position(|&byte| byte == 0) {
+                let name_bytes = &name_bytes[..end];
+
+                if let Ok(name) = std::str::from_utf8(name_bytes) {
+                    events.push(QuEvent::Name {
+                        channel: Channel(channel_id),
+                        name: name.to_owned(),
+                    });
+
+                    return;
+                }
+            } else if let Ok(name) = std::str::from_utf8(name_bytes) {
+                events.push(QuEvent::Name {
+                    channel: Channel(channel_id),
+                    name: name.to_owned(),
+                });
+
+                return;
+            }
+        }
+
+        // Anything that isn't a recognised channel-name SysEx remains generic.
+        events.push(QuEvent::SysEx(data));
     }
 
     /// Converts a completed Qu NRPN parameter change into a semantic event.

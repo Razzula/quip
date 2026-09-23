@@ -5,8 +5,7 @@ use qu::{
     faders::{db_to_fader},
     protocol,
 };
-
-use crate::state::MixerState;
+use crate::state::{MixerState, ChannelRef};
 
 pub fn state(state: &MixerState) -> Vec<Vec<u8>> {
     let mut messages = Vec::new();
@@ -91,4 +90,26 @@ pub fn name(state: &MixerState, channel: Channel) -> Option<Vec<u8>> {
         channel,
         value.as_bytes(),
     ).to_vec())
+}
+
+pub fn mute_group_assignment(
+    state: &MixerState,
+    channel: ChannelRef,
+    group: ChannelRef,
+) -> Option<Vec<u8>> {
+    let assigned = state
+        .mute_group_assignments(group)?
+        .contains(&channel);
+
+    let channel = channel.channel()?;
+    let group = group.channel()?;
+
+    Some(
+        protocol::mute_group_assignment(
+            channel,
+            group,
+            assigned,
+        )
+        .to_vec(),
+    )
 }

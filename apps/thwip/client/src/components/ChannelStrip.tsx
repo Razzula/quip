@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChannelState } from '@quip/quip'
+import type {
+    ChannelState,
+    MuteGroupState,
+} from '@quip/quip'
 import {
     FADER_MAX_POSITION,
     FADER_MIN,
     faderPositionToValue,
     faderValueToPosition,
 } from '../utils/fader'
+import { getMuteState } from '../utils/mute'
 import './ChannelStrip.scss'
 import { MuteButton } from './MuteButton';
 
 interface ChannelStripProps {
     channel: ChannelState;
+    muteGroups: MuteGroupState[];
     onFaderChange: (value: number) => void;
     onMuteChange: (muted: boolean) => void;
     disabled?: boolean;
@@ -26,12 +31,15 @@ function formatFader(value: number | null) {
 
 export function ChannelStrip({
     channel,
+    muteGroups,
     onFaderChange,
     onMuteChange,
     disabled,
 }: ChannelStripProps) {
     const fader = channel.fader ?? -Infinity;
     const [displayedFader, setDisplayedFader] = useState(fader);
+
+    const mute = getMuteState(channel, muteGroups);
 
     const dragging = useRef(false);
     const animationFrame = useRef<number | null>(null);
@@ -109,13 +117,13 @@ export function ChannelStrip({
     return (
         <div
             className={`channel-strip${
-                channel.muted
+                mute.muted
                     ? ' channel-strip--muted'
                     : ''
             }`}
         >
             <div className="channel-strip__name">
-                {channel.name ?? channel.id}
+                {channel.name || channel.id}
             </div>
 
             <div className="channel-strip__value">
@@ -152,12 +160,12 @@ export function ChannelStrip({
                     }}
                     onPointerUp={handleFaderPointerUp}
                     onPointerCancel={handleFaderPointerUp}
-                    aria-label={`${channel.name} fader`}
+                    aria-label={`${channel.name || channel.id} fader`}
                 />
             </div>
 
             <MuteButton
-                muted={channel.muted}
+                muted={mute.local}
                 onChange={onMuteChange}
                 disabled={disabled}
             />

@@ -1,9 +1,10 @@
-import type { ChannelState } from '@quip/quip'
+import type { ChannelState, MuteGroupState } from '@quip/quip'
 import { ChannelStrip } from './ChannelStrip'
 import './ChannelBank.scss'
 
 interface ChannelBankProps {
     channels: ChannelState[];
+    muteGroups: MuteGroupState[];
     compact?: boolean;
     onFaderChange: (channel: ChannelState, value: number) => void;
     onMuteChange: (channel: ChannelState, muted: boolean) => void;
@@ -12,6 +13,7 @@ interface ChannelBankProps {
 
 export function ChannelBank({
     channels,
+    muteGroups,
     compact = false,
     onFaderChange,
     onMuteChange,
@@ -27,6 +29,7 @@ export function ChannelBank({
                 <ChannelStrip
                     key={channel.id}
                     channel={channel}
+                    muteGroups={muteGroups}
                     onFaderChange={(value) =>
                         onFaderChange(channel, value)
                     }

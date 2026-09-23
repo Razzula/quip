@@ -122,6 +122,12 @@ pub enum QuEvent {
     /// Represents a raw MIDI System Exclusive event from the Qu mixer.
     SysEx(Vec<u8>),
 
+    // Represents a Channel Name (SysEx)
+    Name {
+        channel: Channel,
+        name: String,
+    },
+
     /// Represents a MIDI Program Change event.
     ProgramChange {
         channel: u8,
@@ -232,6 +238,10 @@ impl QuEvent {
 
             Self::SysEx(data) => {
                 format!("SysEx: {}", hex(data))
+            }
+
+            Self::Name { channel, name } => {
+                format!("{channel} Name: {name}")
             }
 
             Self::ProgramChange { channel, program } => {

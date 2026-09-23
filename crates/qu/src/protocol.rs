@@ -295,6 +295,30 @@ pub const fn mute_note_off(channel: Channel) -> [u8; 3] {
     ]
 }
 
+/// Encode a mute-group assignment.
+pub const fn mute_group_assignment(
+    channel: Channel,
+    group: Channel,
+    assigned: bool,
+) -> [u8; 12] {
+    let group_number = group.raw() & 0x03;
+
+    let value = if assigned {
+        0x40 | group_number
+    } else {
+        group_number
+    };
+    // let value = 0x40 | group_number; // DEBUG
+
+    encode_nrpn(
+        0,
+        channel,
+        Parameter::MuteGroupAssignment,
+        value,
+        0x07,
+    )
+}
+
 /// Encode a Program Change message.
 pub const fn program_change(
     channel: u8,

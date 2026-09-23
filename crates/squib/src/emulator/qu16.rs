@@ -19,7 +19,7 @@ use qu::{
     },
 };
 use quip::{
-    state::MixerState,
+    state::{MixerState, ChannelRef},
     qu_to_state::handle_event,
     qu_from_state,
 };
@@ -358,15 +358,24 @@ async fn send_mute_group_assigns(
     state: &MixerState,
     channel: &Channel,
 ) -> io::Result<()> {
-    // for number in 1..=4 {
-    //     // MG 1,2,3,4
-    //     // mute state
-    //     write_all(
-    //         stream,
-    //         &qu_from_state::mute(&state, *channel).unwrap(),
-    //     )
-    //     .await?;
-    // }
+    let Some(channel) = ChannelRef::from_channel(*channel) else {
+        return Ok(());
+    };
+
+    for number in 1..=4 {
+        let group = Channel::mute_group(number).unwrap();
+
+        let Some(group) = ChannelRef::from_channel(group) else {
+            continue;
+        };
+
+        write_all(
+            stream,
+            &qu_from_state::mute_group_assignment(state, channel, group)
+                .unwrap(),
+        )
+        .await?;
+    }
 
     Ok(())
 }
@@ -403,6 +412,18 @@ async fn send_channel_names(
     for number in 1..=8 {
         // MIX 1,2,3,4,5-6,7-8,9-10,LR
         let channel = Channel::mix(number).unwrap();
+
+        // fader
+        write_all(
+            stream,
+            &qu_from_state::name(&state, channel).unwrap(),
+        )
+        .await?;
+    }
+
+    for number in 1..=4 {
+        // MG 1,2,3,4
+        let channel = Channel::mute_group(number).unwrap();
 
         // fader
         write_all(

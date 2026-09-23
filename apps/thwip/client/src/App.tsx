@@ -170,7 +170,7 @@ function App() {
                             key={muteGroup.id}
                         >
                             <div className="channel-strip__name">
-                                {muteGroup.name}
+                                {muteGroup.name || muteGroup.id}
                             </div>
 
                             <MuteButton
@@ -188,6 +188,7 @@ function App() {
             <MixerSection title="Inputs">
                 <ChannelBank
                     channels={[...state.inputs, ...state.stereo]}
+                    muteGroups={state.muteGroups}
                     onFaderChange={handleFaderChange}
                     onMuteChange={handleMuteChange}
                     disabled={!isConnected}
@@ -197,6 +198,7 @@ function App() {
             <MixerSection title="Mixes">
                 <ChannelBank
                     channels={state.mixes}
+                    muteGroups={state.muteGroups}
                     onFaderChange={handleFaderChange}
                     onMuteChange={handleMuteChange}
                     disabled={!isConnected}

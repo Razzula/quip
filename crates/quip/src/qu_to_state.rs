@@ -1,7 +1,9 @@
-use crate::state::MixerState;
+use crate::state::{ChannelRef, MixerState};
 use qu::{
     faders::fader_to_db,
     messages::QuEvent,
+    parameters::Parameter,
+    channels::Channel,
 };
 
 pub fn handle_event(state: &mut MixerState, event: QuEvent) {
@@ -25,6 +27,39 @@ pub fn handle_event(state: &mut MixerState, event: QuEvent) {
 
         QuEvent::Mute { channel, muted } => {
             state.set_muted(channel, muted);
+        }
+
+        QuEvent::Name { channel, name } => {
+            state.set_name(channel, name);
+        }
+
+        QuEvent::Parameter {
+            channel,
+            parameter: Parameter::MuteGroupAssignment,
+            value,
+            ..
+        } => {
+            let mute_group_number = (value & 0x03) + 1;
+
+            let Some(mute_group) = Channel::mute_group(mute_group_number) else {
+                return;
+            };
+
+            let Some(mute_group) = ChannelRef::from_channel(mute_group) else {
+                return;
+            };
+
+            let Some(channel) = ChannelRef::from_channel(channel) else {
+                return;
+            };
+
+            let assigned = value & 0x40 != 0;
+
+            state.set_mute_group_assignment(
+                mute_group,
+                channel,
+                assigned,
+            );
         }
 
         _ => {}

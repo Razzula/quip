@@ -1,6 +1,6 @@
 import type { ChannelRef, ChannelState, MixerChange, MixerState, MuteGroupState } from "@quip/quip"
 
-function channelName(channel: ChannelRef): string {
+function channelID(channel: ChannelRef): string {
     switch (channel.kind) {
         case 'Input':
             return `CH${channel.number}`
@@ -39,10 +39,10 @@ function updateChannel(
     channel: ChannelRef,
     update: Partial<ChannelState>,
 ): ChannelState[] {
-    const name = channelName(channel)
+    const id = channelID(channel)
 
     return channels.map((item) =>
-        item.name === name
+        item.id === id
             ? { ...item, ...update }
             : item,
     )
@@ -53,10 +53,10 @@ function updateMuteGroup(
     channel: ChannelRef,
     update: Partial<MuteGroupState>,
 ): MuteGroupState[] {
-    const name = channelName(channel)
+    const id = channelID(channel)
 
     return groups.map((group) =>
-        group.name === name
+        group.id === id
             ? { ...group, ...update }
             : group,
     )
@@ -158,7 +158,6 @@ export function patchState(
     current: MixerState,
     received: MixerState,
 ): MixerState {
-    console.log(current.muteGroups, received.muteGroups);
     return {
         inputs: received.inputs.map((channel, i) => ({
             ...current.inputs[i],

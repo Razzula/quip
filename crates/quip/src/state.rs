@@ -30,7 +30,7 @@ impl ChannelState {
 pub struct MuteGroupState {
     pub name: String,
     pub muted: bool,
-    pub channels: Vec<Channel>,
+    pub channels: Vec<ChannelRef>,
 }
 
 impl MuteGroupState {
@@ -170,8 +170,11 @@ impl MixerState {
         if let Some(state) = self.channel(channel) {
             return Some(state.muted);
         }
-        if let Some(state) = self.mute_group(channel) {
-            return Some(state.muted);
+
+        if let Some(channel) = ChannelRef::from_channel(channel) {
+            if let Some(state) = self.mute_group(channel) {
+                return Some(state.muted);
+            }
         }
 
         None
@@ -183,9 +186,11 @@ impl MixerState {
             return true;
         }
 
-        if let Some(state) = self.mute_group_mut(channel) {
-            state.muted = muted;
-            return true;
+        if let Some(channel) = ChannelRef::from_channel(channel) {
+            if let Some(state) = self.mute_group_mut(channel) {
+                state.muted = muted;
+                return true;
+            }
         }
 
         false
@@ -196,47 +201,69 @@ impl MixerState {
     // -------------------------------------------------------------------------
 
     pub fn name(&self, channel: Channel) -> Option<String> {
-        self.channel(channel).map(|state| state.name.clone())
+        if let Some(state) = self.channel(channel) {
+            return Some(state.name.clone());
+        }
+
+        if let Some(channel) = ChannelRef::from_channel(channel) {
+            if let Some(state) = self.mute_group(channel) {
+                return Some(state.name.clone());
+            }
+        }
+
+        None
     }
 
-    pub fn set_name(&mut self, channel: Channel, value: String) -> bool {
-        let Some(state) = self.channel_mut(channel) else {
-            return false;
-        };
+    pub fn set_name(&mut self, channel: Channel, name: String) -> bool {
+        if let Some(state) = self.channel_mut(channel) {
+            state.name = name;
+            return true;
+        }
 
-        state.name = value;
-        true
+        if let Some(channel) = ChannelRef::from_channel(channel) {
+            if let Some(state) = self.mute_group_mut(channel) {
+                state.name = name;
+                return true;
+            }
+        }
+
+        false
     }
 
     // -------------------------------------------------------------------------
     // MUTE GROUPS
     // -------------------------------------------------------------------------
 
-    pub fn mute_group(&self, channel: Channel) -> Option<&MuteGroupState> {
-        for number in 1..=4 {
-            if Channel::mute_group(number) == Some(channel) {
-                return self.mute_groups.get((number - 1) as usize);
+    pub fn mute_group(&self, channel: ChannelRef) -> Option<&MuteGroupState> {
+        match channel {
+            ChannelRef::MuteGroup(number) => {
+                self.mute_groups.get((number - 1) as usize)
             }
+            _ => None,
         }
-
-        None
     }
 
-    pub fn mute_group_mut(&mut self, channel: Channel) -> Option<&mut MuteGroupState> {
-        for number in 1..=4 {
-            if Channel::mute_group(number) == Some(channel) {
-                return self.mute_groups.get_mut((number - 1) as usize);
+    pub fn mute_group_mut(
+        &mut self,
+        channel: ChannelRef,
+    ) -> Option<&mut MuteGroupState> {
+        match channel {
+            ChannelRef::MuteGroup(number) => {
+                self.mute_groups.get_mut((number - 1) as usize)
             }
+            _ => None,
         }
-
-        None
     }
 
-    pub fn mute_group_muted(&self, channel: Channel) -> Option<bool> {
+    pub fn mute_group_muted(&self, channel: ChannelRef) -> Option<bool> {
         self.mute_group(channel).map(|group| group.muted)
     }
 
-    pub fn set_mute_group_muted(&mut self, channel: Channel, muted: bool) -> bool {
+    pub fn set_mute_group_muted(
+        &mut self,
+        channel: ChannelRef,
+        muted: bool,
+    ) -> bool {
         let Some(group) = self.mute_group_mut(channel) else {
             return false;
         };
@@ -245,15 +272,18 @@ impl MixerState {
         true
     }
 
-    pub fn mute_group_assignments(&self, channel: Channel) -> Option<&[Channel]> {
+    pub fn mute_group_assignments(
+        &self,
+        channel: ChannelRef,
+    ) -> Option<&[ChannelRef]> {
         self.mute_group(channel)
             .map(|group| group.channels.as_slice())
     }
 
     pub fn set_mute_group_assignment(
         &mut self,
-        group: Channel,
-        channel: Channel,
+        group: ChannelRef,
+        channel: ChannelRef,
         assigned: bool,
     ) -> bool {
         let Some(group) = self.mute_group_mut(group) else {
@@ -269,5 +299,67 @@ impl MixerState {
         }
 
         true
+    }
+}
+
+// TODO
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "number")]
+pub enum ChannelRef {
+    Input(u8),
+    Stereo(u8),
+    Mix(u8),
+    Lr,
+    MuteGroup(u8),
+}
+
+impl ChannelRef {
+    pub fn channel(self) -> Option<qu::channels::Channel> {
+        use qu::channels::Channel;
+
+        match self {
+            Self::Input(number) => Channel::input(number),
+            Self::Stereo(number) => Channel::stereo(number),
+            Self::Mix(number) => Channel::mix(number),
+            Self::Lr => Some(Channel::lr()),
+            Self::MuteGroup(number) => Channel::mute_group(number),
+        }
+    }
+
+    pub fn from_channel(channel: qu::channels::Channel) -> Option<Self> {
+        use qu::channels::Channel;
+
+        // CH
+        for number in 1..=16 {
+            if Channel::input(number) == Some(channel) {
+                return Some(Self::Input(number));
+            }
+        }
+
+        // ST
+        for number in 1..=3 {
+            if Channel::stereo(number) == Some(channel) {
+                return Some(Self::Stereo(number));
+            }
+        }
+
+        // MIX
+        for number in 1..=8 {
+            if Channel::mix(number) == Some(channel) {
+                return Some(Self::Mix(number));
+            }
+        }
+        if Channel::lr() == channel {
+            return Some(Self::Lr);
+        }
+
+        // MG
+        for number in 1..=4 {
+            if Channel::mute_group(number) == Some(channel) {
+                return Some(Self::MuteGroup(number));
+            }
+        }
+
+        None
     }
 }

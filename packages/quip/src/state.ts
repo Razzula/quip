@@ -76,7 +76,7 @@ export function channelRef(channel: ChannelState | MuteGroupState): ChannelRef {
         }
     }
 
-    switch (channel.name) {
+    switch (channel.id) {
         case 'MIX1':
             return { kind: 'Mix', number: 1 }
         case 'MIX2':
