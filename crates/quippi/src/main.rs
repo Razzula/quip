@@ -2,10 +2,11 @@ mod discovery;
 mod proxy;
 
 use quip::server::{
-    tcp::TCPServer,
     discovery::DiscoveryServer,
+    tcp::TCPServer,
 };
 
+use std::time::Duration;
 use tokio::net::TcpStream;
 
 const DEVICE_NAME: &[u8] = b"Quippi\0"; // Qu-IP Pi
@@ -15,15 +16,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let address = std::env::args()
         .nth(1) // allow user to specify address
         .unwrap_or_else(|| "0.0.0.0:51325".to_string());
-
-    // find the real Qu first
-    let qu_address = discovery::find_qu().await?;
-    let qu_ip = qu_address.ip();
-    println!("[quippi] Real Qu: {qu_ip}");
-
-    // connect to Qu
-    let qu = TcpStream::connect(qu_address).await?;
-    println!("[quippi] Connected to Qu: {qu_ip}");
 
     // spin up QuYou discovery server
     tokio::spawn(async {
@@ -39,20 +31,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // spin up TCP server
-    let proxy = proxy::Proxy::new(qu);
-    let server = TCPServer::bind(&address).await?;
-    println!("[quippi] Listening on TCP {address}");
+    loop {
+        // find the real Qu
+        let qu = loop {
+            match discovery::find_qu().await {
+                Ok(qu_address) => {
+                    let qu_ip = qu_address.ip();
+                    println!("[quippi] Real Qu: {qu_ip}");
 
-    server
-        .run(move |stream| {
-            let proxy = proxy.clone();
+                    // connect to Qu
+                    match TcpStream::connect(qu_address).await {
+                        Ok(qu) => {
+                            println!("[quippi] Connected to Qu: {qu_ip}");
+                            break qu;
+                        }
 
-            async move {
-                proxy.accept_client(stream).await
+                        Err(error) => {
+                            eprintln!(
+                                "[quippi] Failed to connect to Qu at {qu_ip}: {error}"
+                            );
+                        }
+                    }
+                }
+
+                Err(error) => {
+                    eprintln!("[quippi] Failed to find Qu: {error}");
+                }
             }
-        })
-        .await?;
 
-    Ok(())
+            println!("[quippi] Retrying in 15 seconds...");
+            tokio::time::sleep(Duration::from_secs(15)).await;
+        };
+
+        // spin up TCP server
+        let (proxy, proxy_stopped) = proxy::Proxy::new(qu);
+        let server = TCPServer::bind(&address).await?;
+        println!("[quippi] Listening on TCP {address}");
+
+        tokio::select! {
+            result = server.run(move |stream| {
+                let proxy = proxy.clone();
+
+                async move {
+                    proxy.accept_client(stream).await
+                }
+            }) => {
+                result?;
+                println!("[quippi] TCP server stopped");
+            }
+
+            _ = proxy_stopped => {
+                println!("[quippi] Proxy stopped; restarting...");
+            }
+        }
+    }
 }

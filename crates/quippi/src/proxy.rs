@@ -6,7 +6,7 @@ use std::{
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf},
     net::TcpStream,
-    sync::mpsc,
+    sync::{mpsc, oneshot},
 };
 
 type ClientID = u64;
@@ -42,16 +42,22 @@ pub struct Proxy {
 }
 
 impl Proxy {
-    pub fn new(qu: TcpStream) -> Self {
+    pub fn new(qu: TcpStream) -> (Self, oneshot::Receiver<()>) {
         let (events, receiver) = mpsc::channel(256);
+        let (stopped, stopped_receiver) = oneshot::channel();
 
         let proxy = Self {
             events: events.clone(),
         };
 
-        tokio::spawn(Self::run(qu, receiver, events));
+        tokio::spawn(Self::run(
+            qu,
+            receiver,
+            events,
+            stopped,
+        ));
 
-        proxy
+        (proxy, stopped_receiver)
     }
 
     /// Accept a new client connection.
@@ -75,6 +81,7 @@ impl Proxy {
         qu: TcpStream,
         mut events: mpsc::Receiver<Event>,
         event_sender: mpsc::Sender<Event>,
+        stopped: oneshot::Sender<()>,
     ) {
         let (qu_reader, qu_writer) = tokio::io::split(qu);
 
@@ -140,6 +147,7 @@ impl Proxy {
         }
 
         eprintln!("[quippi] Proxy event loop stopped");
+        let _ = stopped.send(());
     }
 
     fn spawn_qu_reader(

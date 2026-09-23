@@ -30,13 +30,6 @@ impl NRPNState {
         self.value_msb = None;
         self.value_lsb = None;
     }
-
-    /// Clears the complete NRPN parser state.
-    fn reset(&mut self) {
-        self.channel = None;
-        self.parameter = None;
-        self.reset_value();
-    }
 }
 
 #[derive(Debug, Default)]

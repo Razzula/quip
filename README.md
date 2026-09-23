@@ -3,7 +3,7 @@
 > **quip** /kwɪp/ *verb*  
 > to make a humorous and clever remark.
 
-`quip` is a communication library for connecting to Qu mixers over a LAN. The name deliberately combines **Qu** and **IP** — describing communication with a Qu mixer over an IP network — forming the English word *quip*, quite fittingly, for something communicated from one party to another.
+`quip` is a communication library for connecting to [Qu mixers](https://www.allen-heath.com/hardware/qu/) over a LAN. The name deliberately combines **Qu** and **IP** — describing communication with a Qu mixer over an IP network — forming the English word *quip*, quite fittingly, for something communicated from one party to another.
 
 `qu` is the underlying protocol library, handling the encoding and decoding of raw protocol data.
 
@@ -26,6 +26,10 @@ bun run dev
 ```bash
 cargo build -p thwip --release
 bun run build
+```
+```bash
+podman build -t localhost/thwip:test -f apps/thwip/Containerfile .
+podman run --rm -p 3000:3000 -p 4173:4173 --network host localhost/thwip:test
 ```
 
 ## Crates
@@ -52,6 +56,11 @@ cargo run -p quippi
 ```
 ```bash
 cargo build --workspace --release
+```
+```bash
+# quippi
+podman build -t localhost/quippi:test \  -f crates/quippi/Containerfile .
+podman run --rm -it --network host localhost/quippi:test
 ```
 
 ## Packages

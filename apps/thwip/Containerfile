@@ -1,0 +1,38 @@
+# thwip/server
+FROM docker.io/library/rust:bookworm AS rust-builder
+
+WORKDIR /src
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY apps ./apps
+
+RUN cargo build --release -p thwip
+
+# thwip/client
+FROM docker.io/oven/bun:1 AS bun-builder
+
+WORKDIR /src
+
+COPY package.json bun.lock ./
+COPY packages ./packages
+COPY apps ./apps
+
+WORKDIR /src/apps/thwip/client
+RUN bun install --frozen-lockfile
+RUN bun run build
+
+# thwip
+FROM docker.io/library/nginx:bookworm
+
+# Rust backend
+COPY --from=rust-builder /src/target/release/thwip /usr/local/bin/thwip
+# Static frontend
+COPY --from=bun-builder /src/apps/thwip/client/dist /usr/share/nginx/html
+# Nginx config
+COPY apps/thwip/nginx.conf /etc/nginx/conf.d/default.conf
+
+COPY apps/thwip/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
