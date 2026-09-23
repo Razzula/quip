@@ -11,7 +11,7 @@ import {
 } from '../utils/fader'
 import { getMuteState } from '../utils/mute'
 import './ChannelStrip.scss'
-import { MuteButton } from './MuteButton';
+import { MuteButton } from './MuteButton'
 
 interface ChannelStripProps {
     channel: ChannelState;

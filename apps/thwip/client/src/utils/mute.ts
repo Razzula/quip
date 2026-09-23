@@ -1,8 +1,4 @@
-import type {
-    ChannelRef,
-    ChannelState,
-    MuteGroupState,
-} from '@quip/quip';
+import type { ChannelRef, ChannelState, MuteGroupState } from '@quip/quip';
 import { channelRef } from '@quip/quip';
 
 export interface MuteState {

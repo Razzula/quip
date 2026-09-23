@@ -20,9 +20,11 @@
 | `thwip`      | [quip web](https://soundofcomics.sdsu.edu/sound-effects/#:~:text=THWIP) controller for Qu devices |
 
 ```bash
+cargo run -p thwip
 bun run dev
 ```
 ```bash
+cargo build -p thwip --release
 bun run build
 ```
 

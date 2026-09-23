@@ -1,16 +1,16 @@
 export function parseMessage(data: string): unknown {
-    const message = JSON.parse(data)
+    const message = JSON.parse(data);
 
     if (!message || typeof message !== 'object') {
-        return message
+        return message;
     }
 
-    const value = message as Record<string, unknown>
+    const value = message as Record<string, unknown>;
 
     if ('mute_groups' in value) {
-        value.muteGroups = value.mute_groups
-        delete value.mute_groups
+        value.muteGroups = value.mute_groups;
+        delete value.mute_groups;
     }
 
-    return value
+    return value;
 }

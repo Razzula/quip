@@ -1,11 +1,11 @@
 .channel-bank {
     display: flex;
     gap: 2px;
-    padding: 8px;
+    padding: 4px;
     overflow-x: auto;
     background: #191a1d;
     border: 1px solid #292b30;
-    border-radius: 6px;
+    border-radius: 4px;
 
     &--compact {
         width: fit-content;
@@ -15,7 +15,6 @@
     @media (max-width: 768px) {
         display: grid;
         width: 100%;
-        box-sizing: border-box;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 6px;
         overflow: hidden;
@@ -23,7 +22,6 @@
         .channel-strip {
             width: 100%;
             min-width: 0;
-            box-sizing: border-box;
         }
 
         &--compact {

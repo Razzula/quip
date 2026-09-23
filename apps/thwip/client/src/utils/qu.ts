@@ -39,13 +39,13 @@ function updateChannel(
     channel: ChannelRef,
     update: Partial<ChannelState>,
 ): ChannelState[] {
-    const id = channelID(channel)
+    const id = channelID(channel);
 
     return channels.map((item) =>
         item.id === id
             ? { ...item, ...update }
             : item,
-    )
+    );
 }
 
 function updateMuteGroup(
@@ -53,13 +53,13 @@ function updateMuteGroup(
     channel: ChannelRef,
     update: Partial<MuteGroupState>,
 ): MuteGroupState[] {
-    const id = channelID(channel)
+    const id = channelID(channel);
 
     return groups.map((group) =>
         group.id === id
             ? { ...group, ...update }
             : group,
-    )
+    );
 }
 
 export function applyChange(
@@ -79,7 +79,7 @@ export function applyChange(
                             change.channel,
                             { fader: value },
                         ),
-                    }
+                    };
 
                 case 'Stereo':
                     return {
@@ -89,7 +89,7 @@ export function applyChange(
                             change.channel,
                             { fader: value },
                         ),
-                    }
+                    };
 
                 case 'Mix':
                 case 'Lr':
@@ -100,7 +100,7 @@ export function applyChange(
                             change.channel,
                             { fader: value },
                         ),
-                    }
+                    };
                 
                 default:
                     return {...state};
@@ -116,7 +116,7 @@ export function applyChange(
                             change.channel,
                             { muted: change.muted },
                         ),
-                    }
+                    };
 
                 case 'Stereo':
                     return {
@@ -126,7 +126,7 @@ export function applyChange(
                             change.channel,
                             { muted: change.muted },
                         ),
-                    }
+                    };
 
                 case 'Mix':
                 case 'Lr':
@@ -137,7 +137,7 @@ export function applyChange(
                             change.channel,
                             { muted: change.muted },
                         ),
-                    }
+                    };
                 
                 case 'MuteGroup':
                     return {
@@ -147,7 +147,7 @@ export function applyChange(
                             change.channel,
                             { muted: change.muted },
                         ),
-                    }
+                    };
             }
     }
 
@@ -175,29 +175,29 @@ export function patchState(
             ...current.muteGroups[i],
             ...channel,
         })),
-    }
+    };
 }
 
 export function isMixerState(value: unknown): value is MixerState {
     if (!value || typeof value !== 'object') {
-        return false
+        return false;
     }
 
-    const state = value as Record<string, unknown>
+    const state = value as Record<string, unknown>;
 
     return (
         Array.isArray(state.inputs) &&
         Array.isArray(state.stereo) &&
         Array.isArray(state.mixes)
-    )
+    );
 }
 
 export function isMixerChange(value: unknown): value is MixerChange {
     if (!value || typeof value !== 'object') {
-        return false
+        return false;
     }
 
-    const change = value as Record<string, unknown>
+    const change = value as Record<string, unknown>;
 
     return (
         (change.type === 'Fader' || change.type === 'Mute') &&
@@ -211,5 +211,5 @@ export function isMixerChange(value: unknown): value is MixerChange {
                     change.value === null
                 )
         )
-    )
+    );
 }

@@ -27,37 +27,30 @@ input {
 
 .mixer {
     min-height: 100vh;
-    padding: 24px;
-    overflow-x: auto;
+    height: 100vh;
+    padding: 12px;
+    overflow: hidden;
 
     &__header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 24px;
-        gap: 2rem;
+        gap: 1rem;
+        margin-bottom: 12px;
 
         h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 600;
-            letter-spacing: -0.02em;
         }
-    }
-
-    &__connection {
-        display: inline-block;
-        margin-top: 5px;
-        font-size: 12px;
-        color: #d37d7d;
-
-        transition: ease color 500ms;
     }
 
     &__connection {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
+        margin-top: 3px;
+        font-size: 10px;
 
         &--connected {
             color: #7dd3a8;
@@ -93,14 +86,144 @@ input {
     &__mute-groups {
         display: flex;
         flex-direction: row;
-        gap: 1rem;
+        align-items: flex-end;
+        gap: 0.4rem;
+        flex-shrink: 0;
     }
 
     &__mute-group {
         display: flex;
         flex-direction: column;
-        align-items: stretch;
-        gap: 0.5rem;
+        align-items: center;
+        gap: 0;
+        flex-shrink: 0;
+    }
+
+    &__short-layout,
+    &__mobile-layout {
+        display: none;
+    }
+
+    &__tall-layout {
+        display: block;
+    }
+
+    @media (min-width: 769px) and (max-height: 700px) {
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+
+        &__header {
+            flex: 0 0 auto;
+            margin-bottom: 4px;
+        }
+
+        &__tall-layout,
+        &__mobile-layout {
+            display: none;
+        }
+
+        &__short-layout {
+            display: flex;
+            flex: 1 1 auto;
+            min-height: 0;
+            gap: 6px;
+        }
+
+        &__io-scroll {
+            display: flex;
+            flex: 1 1 auto;
+            min-width: 0;
+            min-height: 0;
+            gap: 6px;
+            overflow-x: auto;
+            overflow-y: hidden;
+
+            .mixer-section {
+                display: flex;
+                flex-direction: column;
+                flex: 0 0 auto;
+                min-height: 0;
+                height: 100%;
+                margin: 0;
+            }
+        }
+
+        &__main-mix {
+            display: flex;
+            flex-direction: column;
+            flex: 0 0 auto;
+            height: 100%;
+            margin: 0;
+        }
+
+        .mixer-section__header {
+            flex: 0 0 auto;
+            margin-bottom: 3px;
+
+            h2 {
+                font-size: 10px;
+                letter-spacing: 0.06em;
+            }
+        }
+
+        .channel-bank {
+            flex: 1 1 auto;
+            min-height: 0;
+            height: auto;
+            padding: 4px;
+        }
+
+        .channel-strip {
+            height: 100%;
+            min-height: 0;
+        }
+    }
+
+    @media (max-width: 768px) {
+        height: auto;
+        min-height: 100vh;
+        padding: 12px;
+        overflow-y: auto;
+
+        &__header {
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        &__mute-groups {
+            width: auto;
+            max-width: 50%;
+            overflow-x: auto;
+        }
+
+        &__tall-layout,
+        &__short-layout {
+            display: none;
+        }
+
+        &__mobile-layout {
+            display: block;
+        }
+
+        .mixer__header {
+            margin: 0rem;
+        }
+
+        .mixer-section__header {
+            flex: 0 0 auto;
+            margin-bottom: 3px;
+
+            h2 {
+                font-size: 1rem;
+                letter-spacing: 0.06em;
+                margin-top: 0.6rem;
+                margin-bottom: 0.4rem;
+            }
+        }
     }
 }
 
