@@ -31,7 +31,7 @@ use quip::{
     client::discovery::discover,
     qu_from_state,
     qu_to_state,
-    state::{ChannelRef, MixerState},
+    state::{ChannelRef, MeterState, MixerState},
 };
 
 #[derive(Clone)]
@@ -40,6 +40,9 @@ struct AppState {
 
     /// Changes originating from the Qu which should be sent to clients.
     client_updates: broadcast::Sender<MixerChange>,
+
+    /// Latest meter state from the Qu.
+    meters: watch::Sender<MeterState>,
 
     /// Commands sent to the Qu manager.
     qu_commands: mpsc::Sender<QuCommand>,
@@ -109,6 +112,8 @@ enum ServerMessage {
     State(MixerState),
 
     Change(MixerChange),
+
+    Meters(MeterState),
 }
 
 struct ClientHandler {
@@ -138,7 +143,8 @@ impl ClientHandler {
             .is_err()
         {
             eprintln!("[TX QU] Qu manager is unavailable");
-        } else {
+        }
+        else {
             println!("[TX QU] {:?}", change);
         }
     }
@@ -154,7 +160,10 @@ impl QuHandler {
     }
 
     async fn handle(&self, event: QuEvent) -> bool {
-        if !matches!(event, QuEvent::ActiveSense) {
+        if !matches!(
+            event,
+            QuEvent::ActiveSense | QuEvent::Meters { .. }
+        ) {
             println!("[RX QU] {:?}", event);
         }
 
@@ -216,17 +225,35 @@ impl QuHandler {
         };
 
         /*
-         * Let quip own the authoritative interpretation of every Qu event.
-         */
+        * Let quip own the authoritative interpretation of every Qu event.
+        */
         {
             let mut mixer = self.state.mixer.write().await;
-            qu_to_state::handle_event(&mut mixer, event.clone());
+            let mut meters = self.state.meters.borrow().clone();
+
+            qu_to_state::handle_event(
+                &mut mixer,
+                &mut meters,
+                event.clone(),
+            );
+
+            /*
+            * Publish the updated meter state. The watch channel retains only
+            * the latest value, which is exactly what we want for high-frequency
+            * meter data.
+            */
+            if matches!(event, QuEvent::Meters { .. }) {
+                println!("[QU] Meters updated");
+                let _ = self.state.meters.send(meters);
+                println!("[QU] Meters sent to watch channel");
+                return false;
+            }
         }
 
         /*
-         * The end-of-system-state SysEx marks completion of the initial
-         * synchronisation.
-         */
+        * The end-of-system-state SysEx marks completion of the initial
+        * synchronisation.
+        */
         let is_end_sync = matches!(
             &event,
             QuEvent::SysEx(data)
@@ -243,19 +270,9 @@ impl QuHandler {
 
         if is_end_sync {
             println!("[QU] Initial system state received");
-
-            /*
-             * The manager owns the status transition. Returning true tells
-             * it that synchronisation has completed.
-             */
             return true;
         }
 
-        /*
-         * Do not broadcast individual changes while the initial state is
-         * still being populated. The complete MixerState is sent once
-         * synchronisation finishes.
-         */
         if let Some(change) = change {
             if matches!(
                 &*self.state.qu_status.borrow(),
@@ -341,6 +358,18 @@ async fn request_system_state(
         .await?;
 
     println!("[QU TX] GET_SYSTEM_STATE");
+
+    Ok(())
+}
+
+async fn request_meters(
+    stream: &mut TcpStream,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    stream
+        .write_all(&qu::protocol::meter_control(true))
+        .await?;
+
+    println!("[QU TX] ENABLE_METERS");
 
     Ok(())
 }
@@ -664,6 +693,10 @@ async fn run_qu_manager(
 
                             *mixer = MixerState::default();
 
+                            let _ = state.meters.send(
+                                MeterState::default()
+                            );
+
                             parser =
                                 qu::parser::Parser::new();
                         }
@@ -691,7 +724,8 @@ async fn run_qu_manager(
                                     message: error.to_string(),
                                 },
                             );
-                        } else if let Err(error) =
+                        }
+                        else if let Err(error) =
                             request_system_state(
                                 qu_stream
                             )
@@ -752,6 +786,7 @@ async fn connect_and_synchronise(
     );
 
     request_system_state(&mut qu_stream).await?;
+    request_meters(&mut qu_stream).await?;
 
     /*
      * A fresh parser is required for every fresh TCP connection.
@@ -813,6 +848,7 @@ async fn handle_websocket(
      */
     let mut qu_status = state.qu_status.subscribe();
     let mut client_updates = state.client_updates.subscribe();
+    let mut meters = state.meters.subscribe();
 
     if state
         .qu_commands
@@ -860,6 +896,21 @@ async fn handle_websocket(
         if send_current_state(
             &mut sender,
             &state,
+        )
+        .await
+        .is_err()
+        {
+            let _ = state
+                .qu_commands
+                .send(QuCommand::ClientDisconnected)
+                .await;
+
+            return;
+        }
+
+        if send_current_meters(
+            &mut sender,
+            &meters,
         )
         .await
         .is_err()
@@ -940,6 +991,19 @@ async fn handle_websocket(
                         );
                         break;
                     }
+
+                    if send_current_meters(
+                        &mut sender,
+                        &meters,
+                    )
+                    .await
+                    .is_err()
+                    {
+                        eprintln!(
+                            "[UI] Client disconnected"
+                        );
+                        break;
+                    }
                 }
             }
 
@@ -970,6 +1034,53 @@ async fn handle_websocket(
                                 eprintln!(
                                     "[TX UI] Failed to serialise \
                                      mixer change: {}",
+                                    error
+                                );
+                                continue;
+                            }
+                        }
+                    ))
+                    .await
+                    .is_err()
+                {
+                    eprintln!(
+                        "[UI] Client disconnected"
+                    );
+                    break;
+                }
+            }
+
+            result = meters.changed() => {
+                if result.is_err() {
+                    break;
+                }
+
+                /*
+                 * Meter data is only meaningful while the Qu is connected.
+                 * The watch channel always contains the latest state, so
+                 * slow clients naturally skip obsolete meter updates.
+                 */
+                if !matches!(
+                    &*qu_status.borrow(),
+                    QuStatus::Connected { .. }
+                ) {
+                    continue;
+                }
+
+                let meter_state =
+                    meters.borrow().clone();
+
+                let message =
+                    ServerMessage::Meters(meter_state);
+
+                if sender
+                    .send(Message::Text(
+                        match serde_json::to_string(&message) {
+                            Ok(message) => message.into(),
+                            Err(error) => {
+                                eprintln!(
+                                    "[TX UI] Failed to serialise \
+                                     meter state: {}",
                                     error
                                 );
                                 continue;
@@ -1048,9 +1159,35 @@ async fn send_current_state(
         .await
 }
 
+async fn send_current_meters(
+    sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
+    meters: &watch::Receiver<MeterState>,
+) -> Result<(), axum::Error> {
+    let meter_state = meters.borrow().clone();
+
+    let message = ServerMessage::Meters(
+        meter_state
+    );
+
+    let text = serde_json::to_string(&message)
+        .map_err(|_| axum::Error::new(
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to serialise meter state",
+            )
+        ))?;
+
+    sender
+        .send(Message::Text(text.into()))
+        .await
+}
+
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let (client_updates, _) =
         broadcast::channel(64);
+
+    let (meters, _) =
+        watch::channel(MeterState::default());
 
     let (qu_commands, qu_command_receiver) =
         mpsc::channel(64);
@@ -1065,6 +1202,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             )
         ),
         client_updates,
+        meters,
         qu_commands,
         qu_status,
     };

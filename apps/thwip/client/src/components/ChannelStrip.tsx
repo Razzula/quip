@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type {
     ChannelState,
     MuteGroupState,
@@ -15,6 +15,7 @@ import { MuteButton } from './MuteButton'
 
 interface ChannelStripProps {
     channel: ChannelState;
+    meter?: number | [number | null, number | null];
     muteGroups: MuteGroupState[];
     onFaderChange: (value: number) => void;
     onMuteChange: (muted: boolean) => void;
@@ -29,8 +30,34 @@ function formatFader(value: number | null) {
     return `${value.toFixed(1)} dB`;
 }
 
+function meterPercentage(value: number | null | undefined) {
+    const MIN_DB = -60;
+    const MAX_DB = 10;
+
+    if (value === null || value === undefined || !Number.isFinite(value)) {
+        return 0;
+    }
+
+    return Math.max(
+        0,
+        Math.min(
+            100,
+            ((value - MIN_DB) / (MAX_DB - MIN_DB)) * 100,
+        ),
+    );
+}
+
+function meterStyle(
+    value: number | null | undefined,
+): CSSProperties {
+    return {
+        '--meter-level': `${meterPercentage(value)}%`,
+    } as CSSProperties;
+}
+
 export function ChannelStrip({
     channel,
+    meter,
     muteGroups,
     onFaderChange,
     onMuteChange,
@@ -43,6 +70,14 @@ export function ChannelStrip({
 
     const dragging = useRef(false);
     const animationFrame = useRef<number | null>(null);
+    console.log(
+        'Meter:',
+        meter,
+        'Percentage:',
+        Array.isArray(meter)
+            ? meter.map(meterPercentage)
+            : meterPercentage(meter),
+    );
 
     const faderPointer = useRef<{
         active: boolean;
@@ -244,11 +279,10 @@ export function ChannelStrip({
 
     return (
         <div
-            className={`channel-strip${
-                mute.muted
+            className={`channel-strip${mute.muted
                     ? ' channel-strip--muted'
                     : ''
-            }`}
+                }`}
         >
             <div className="channel-strip__name">
                 {channel.name || channel.id}
@@ -271,6 +305,35 @@ export function ChannelStrip({
                     <span>-∞</span>
                 </div>
 
+                <div className="channel-strip__meter">
+                    {Array.isArray(meter) ? (
+                        <>
+                            <div className="channel-strip__meter-bar">
+                                <div
+                                    className="channel-strip__meter-level"
+                                    style={meterStyle(meter[0])}
+                                />
+                            </div>
+
+                            <div className="channel-strip__meter-bar">
+                                <div
+                                    className="channel-strip__meter-level"
+                                    style={meterStyle(meter[1])}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="channel-strip__meter-bar">
+                            <div
+                                className="channel-strip__meter-level"
+                                style={meterStyle(
+                                    meter ?? -Infinity,
+                                )}
+                            />
+                        </div>
+                    )}
+                </div>
+
                 <div
                     className="channel-strip__fader-control"
                     onPointerDown={
@@ -285,9 +348,8 @@ export function ChannelStrip({
                     onPointerCancel={
                         handleFaderPointerCancel
                     }
-                    aria-label={`${
-                        channel.name || channel.id
-                    } fader`}
+                    aria-label={`${channel.name || channel.id
+                        } fader`}
                     role="slider"
                     aria-orientation="vertical"
                     aria-valuemin={FADER_MIN}

@@ -6,7 +6,7 @@
 
 use crate::{
     channels::{Channel, SendDestination},
-    parameters::Parameter,
+    parameters::{MeterBlock, Parameter},
     faders::fader_to_db,
 };
 
@@ -46,13 +46,26 @@ pub enum MidiMessage {
     ActiveSense,
 }
 
+/// A single value from the Qu meter stream.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MeterValue {
+    /// The meter block this value belongs to.
+    pub block: MeterBlock,
+
+    /// Zero-based position within the meter block.
+    pub index: usize,
+
+    /// Meter level in dB.
+    pub db: f32,
+}
+
 /// Represents a semantic event produced by or sent to a Qu mixer.
 ///
 /// `QuEvent` provides a higher-level representation of Qu's MIDI protocol by
 /// interpreting raw MIDI messages as mixer operations where possible.
 /// Messages or operations that do not have a dedicated representation are
 /// retained as generic MIDI, SysEx, or unknown events.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum QuEvent {
     /// Represents a MIDI Active Sense message.
     ActiveSense,
@@ -126,6 +139,14 @@ pub enum QuEvent {
     Name {
         channel: Channel,
         name: String,
+    },
+
+    /// Represents a batch of meter values received from the Qu meter stream.
+    ///
+    /// Meter data is sent continuously by the mixer and is deliberately kept
+    /// separate from normal mixer parameter events.
+    Meters {
+        values: Vec<MeterValue>,
     },
 
     /// Represents a MIDI Program Change event.
@@ -219,7 +240,8 @@ impl QuEvent {
                     "{channel} Polarity: {}",
                     if *reversed {
                         "REVERSED"
-                    } else {
+                    }
+                    else {
                         "normal"
                     }
                 )
@@ -242,6 +264,10 @@ impl QuEvent {
 
             Self::Name { channel, name } => {
                 format!("{channel} Name: {name}")
+            }
+
+            Self::Meters { values } => {
+                format!("Meters: {} values", values.len())
             }
 
             Self::ProgramChange { channel, program } => {
@@ -279,7 +305,8 @@ fn db_value(value: u8) -> String {
 
     if db.is_infinite() {
         "-inf dB".into()
-    } else {
+    }
+    else {
         format!("{db:.1} dB")
     }
 }

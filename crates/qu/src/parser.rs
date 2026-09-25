@@ -5,8 +5,8 @@
 
 use crate::{
     channels::{Channel, SendDestination},
-    messages::{MidiMessage, QuEvent},
-    parameters::Parameter,
+    messages::{MeterValue, MidiMessage, QuEvent},
+    parameters::{MeterBlock, Parameter},
     protocol::ACTIVE_SENSE,
 };
 
@@ -310,6 +310,30 @@ impl Parser {
         data: Vec<u8>,
         events: &mut Vec<QuEvent>,
     ) {
+        // Qu meter data SysEx:
+        //
+        // F0 00 00 1A 50 11 01 00 13 <MeterData...> F7
+        //
+        // 0x13 is the meter-data response. The meter payload is packed
+        // into MIDI-safe 7-bit bytes.
+
+        const METER_PREFIX: &[u8] = &[
+            0xF0, 0x00, 0x00, 0x1A,
+            0x50, 0x11, 0x01, 0x00, 0x13,
+        ];
+
+        if data.starts_with(METER_PREFIX)
+            && data.last() == Some(&0xF7)
+        {
+            let meter_data = &data[METER_PREFIX.len()..data.len() - 1];
+
+            events.push(QuEvent::Meters {
+                values: parse_meter_values(meter_data),
+            });
+
+            return;
+        }
+
         // Qu channel-name SysEx:
         //
         // F0 00 00 1A 50 11 01 00 00 02
@@ -341,7 +365,8 @@ impl Parser {
 
                     return;
                 }
-            } else if let Ok(name) = std::str::from_utf8(name_bytes) {
+            }
+            else if let Ok(name) = std::str::from_utf8(name_bytes) {
                 events.push(QuEvent::Name {
                     channel: Channel(channel_id),
                     name: name.to_owned(),
@@ -351,7 +376,7 @@ impl Parser {
             }
         }
 
-        // Anything that isn't a recognised channel-name SysEx remains generic.
+        // Anything that isn't a recognised channel-name or meter SysEx remains generic.
         events.push(QuEvent::SysEx(data));
     }
 
@@ -493,6 +518,100 @@ impl Parser {
             velocity,
         }));
     }
+}
+
+/// Parses the packed meter data from a Qu meter SysEx response.
+///
+/// Qu packs seven 8-bit bytes into eight MIDI-safe bytes. The first byte
+/// contains the high bit for each of the following seven bytes.
+fn decode_meter_data(data: &[u8]) -> Vec<u8> {
+    let mut decoded = Vec::with_capacity(data.len() * 7 / 8);
+
+    for chunk in data.chunks(8) {
+        if chunk.len() < 2 {
+            break;
+        }
+
+        let high_bits = chunk[0];
+
+        for i in 0..(chunk.len() - 1).min(7) {
+            let high_bit = (high_bits >> (6 - i)) & 0x01;
+            decoded.push(chunk[i + 1] | (high_bit << 7));
+        }
+    }
+
+    decoded
+}
+
+/// Converts the packed Qu meter stream into individual meter values.
+///
+/// The Qu-16 meter stream contains:
+///
+/// 16 × Mono Input blocks (10 values)
+/// 80 unused values
+/// 3 × Stereo Input blocks (20 values)
+/// 20 unused values
+/// 4 × Mono Mix blocks (10 values)
+/// 4 × Stereo Mix blocks (20 values)
+/// 1 × Stereo Monitor block (16 values)
+/// 4 × Stereo FX blocks (80 values)
+fn parse_meter_values(data: &[u8]) -> Vec<MeterValue> {
+    let decoded = decode_meter_data(data);
+
+    decoded
+        .chunks_exact(2)
+        .enumerate()
+        .filter_map(|(index, bytes)| {
+            let (block, index_in_block) = match index {
+                0..160 => (
+                    MeterBlock::MonoInput((index / 10 + 1) as u8),
+                    index % 10,
+                ),
+
+                160..240 => return None,
+
+                240..300 => (
+                    MeterBlock::StereoInput(((index - 240) / 20 + 1) as u8),
+                    (index - 240) % 20,
+                ),
+
+                300..320 => return None,
+
+                320..360 => (
+                    MeterBlock::MonoMix(((index - 320) / 10 + 1) as u8),
+                    (index - 320) % 10,
+                ),
+
+                360..440 => (
+                    MeterBlock::StereoMix(((index - 360) / 20 + 1) as u8),
+                    (index - 360) % 20,
+                ),
+
+                440..456 => (
+                    MeterBlock::Monitor,
+                    index - 440,
+                ),
+
+                456..776 => (
+                    MeterBlock::Fx(((index - 456) / 80 + 1) as u8),
+                    (index - 456) % 80,
+                ),
+
+                _ => return None,
+            };
+
+            let raw = u16::from_be_bytes([bytes[0], bytes[1]]);
+
+            // Signed 7Q8 fixed-point value with a 0x8000 offset.
+            let value = raw.wrapping_sub(0x8000) as i16;
+
+            Some(MeterValue {
+                block,
+                index: index_in_block,
+                db: value as f32 / 256.0,
+            })
+        })
+        .collect()
 }
 
 impl MidiMessage {

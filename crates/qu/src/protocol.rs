@@ -48,6 +48,10 @@ pub const SYSEX_GET_CHANNEL_NAME: u8 = 0x01;
 pub const SYSEX_CHANNEL_NAME: u8 = 0x02;
 /// SysEx command: Set Channel Name.
 pub const SYSEX_SET_CHANNEL_NAME: u8 = 0x03;
+/// SysEx command: enable/disable meter streaming.
+pub const SYSEX_METER_CONTROL: u8 = 0x12;
+/// SysEx command: meter data response.
+pub const SYSEX_METER_DATA: u8 = 0x13;
 
 /// Standard Qu SysEx header.
 ///
@@ -163,6 +167,19 @@ pub fn set_channel_name(channel: Channel, name: &[u8]) -> Vec<u8> {
     message.extend_from_slice(name);
     message.push(0xf7);
     message
+}
+
+/// Enable or disable the Qu meter stream.
+///
+/// `true` causes the Qu to continuously transmit meter SysEx messages.
+/// `false` stops the meter stream.
+pub fn meter_control(enabled: bool) -> Vec<u8> {
+    sysex(&[
+        0x00, // MIDI channel
+        SYSEX_METER_CONTROL,
+        u8::from(enabled),
+        0xf7,
+    ])
 }
 
 /// Encode a MIDI Control Change message.
@@ -305,7 +322,8 @@ pub const fn mute_group_assignment(
 
     let value = if assigned {
         0x40 | group_number
-    } else {
+    }
+    else {
         group_number
     };
     // let value = 0x40 | group_number; // DEBUG

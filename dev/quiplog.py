@@ -4,7 +4,7 @@ import socket
 from datetime import datetime
 
 
-HOST = '192.168.1.2'
+HOST = '127.0.0.1'
 PORT = 51325
 LOG_FILE = 'quip.log'
 
@@ -17,6 +17,12 @@ GET_SYSTEM_STATE = bytes.fromhex(
     'F0 00 00 1A 50 11 01 00 7F 10 00 F7'
 )
 
+METER_ON = bytes.fromhex(
+    'F0 00 00 1A 50 11 01 00 00 12 01 F7'
+)
+METER_OFF = bytes.fromhex(
+    'F0 00 00 1A 50 11 01 00 00 12 00 F7'
+)
 
 # Qu channel-strip numbers.
 # Input 1-32 = 0x20-0x3F
@@ -409,9 +415,22 @@ class MIDIProcessor:
                 if byte == 0xF7:
                     raw = bytes(self.pending)
 
-                    events.append(
-                        f'SysEx: {hex_bytes(raw)}'
-                    )
+                    # -------------------------------------------------------
+                    # Meter data
+                    # -------------------------------------------------------
+
+                    if (
+                        len(raw) >= 10
+                        and raw[8] == METER_DATA_COMMAND
+                    ):
+                        events.extend(
+                            parse_meter_sysex(raw)
+                        )
+
+                    else:
+                        events.append(
+                            f'SysEx: {hex_bytes(raw)}'
+                        )
 
                     self.pending.clear()
 
@@ -564,6 +583,267 @@ class MIDIProcessor:
 
 
 # ---------------------------------------------------------------------------
+# Meter processing
+# ---------------------------------------------------------------------------
+
+METER_DATA_COMMAND = 0x13
+
+
+def unpack_7bit(data: bytes) -> bytes:
+    """
+    Decode Qu's 7-bit SysEx packing.
+
+    Every group contains:
+        1 byte  = high-bit flags
+        7 bytes = payload bytes with their high bits removed
+    """
+
+    raw = bytearray()
+    index = 0
+
+    while index < len(data):
+        flags = data[index]
+        index += 1
+
+        remaining = min(7, len(data) - index)
+
+        for i in range(remaining):
+            value = data[index + i]
+
+            if flags & (1 << i):
+                value |= 0x80
+
+            raw.append(value)
+
+        index += remaining
+
+    return bytes(raw)
+
+
+def meter_db(raw: bytes) -> float:
+    """
+    Convert a Qu 7Q8 meter value into dB.
+
+    The protocol stores:
+        unsigned = signed_value + 0x8000
+        dB = signed_value / 256
+    """
+
+    if len(raw) != 2:
+        raise ValueError('Meter value must contain exactly two bytes')
+
+    value = int.from_bytes(raw, 'big')
+    signed = value - 0x8000
+
+    return signed / 256.0
+
+
+def parse_meter_sysex(data: bytes) -> list[str]:
+    """
+    Parse a Qu-16 meter-data SysEx message.
+
+    Qu-16 meter layout:
+
+        16 Mono Input blocks
+        80 unused meters
+        3 Stereo Input blocks
+        20 unused meters
+        4 Mono Mix blocks
+        4 Stereo Mix blocks
+        1 Stereo Monitor block
+        4 Stereo FX blocks
+
+    Each meter is a signed 7Q8 value stored as two bytes.
+
+    For normal channel metering, the first meter in each block
+    is the post-preamp / signal meter.
+    """
+
+    if len(data) < 10:
+        return []
+
+    if data[:8] != bytes.fromhex(
+        'F0 00 00 1A 50 11 01 00'
+    ):
+        return []
+
+    if data[8] != METER_DATA_COMMAND:
+        return []
+
+    if data[-1] != 0xF7:
+        return []
+
+    packed = data[9:-1]
+    raw = unpack_7bit(packed)
+
+    events = []
+
+    # -----------------------------------------------------------------------
+    # Mono inputs
+    #
+    # 16 blocks
+    # 10 meters per block
+    # 2 bytes per meter
+    #
+    # First meter in each block:
+    #   Post Preamp
+    # -----------------------------------------------------------------------
+
+    MONO_INPUT_METERS = 10
+    meter_size = 2
+
+    for channel in range(16):
+        offset = (
+            channel
+            * MONO_INPUT_METERS
+            * meter_size
+        )
+
+        if offset + meter_size > len(raw):
+            break
+
+        db = meter_db(
+            raw[offset:offset + meter_size]
+        )
+
+        events.append(
+            f'CH{channel + 1} Meter: {db:.2f} dB'
+        )
+
+    # -----------------------------------------------------------------------
+    # Stereo inputs
+    #
+    # 80 unused meters occur before the stereo input blocks.
+    #
+    # Each stereo block contains:
+    #
+    #   10 meters L
+    #   10 meters R
+    #
+    # The first two values are Post Preamp L/R.
+    # -----------------------------------------------------------------------
+
+    stereo_input_start = (
+        16 * MONO_INPUT_METERS
+        + 80
+    )
+
+    STEREO_INPUT_METERS = 20
+
+    for channel in range(3):
+        offset = (
+            stereo_input_start
+            + channel * STEREO_INPUT_METERS
+        ) * meter_size
+
+        if offset + (2 * meter_size) > len(raw):
+            break
+
+        left = meter_db(
+            raw[offset:offset + meter_size]
+        )
+
+        right = meter_db(
+            raw[offset + meter_size:
+                offset + (2 * meter_size)]
+        )
+
+        events.append(
+            f'ST{channel + 1} Meter: '
+            f'L {left:.2f} dB, '
+            f'R {right:.2f} dB'
+        )
+
+    # -----------------------------------------------------------------------
+    # Mono mixes
+    #
+    # 20 unused meters occur before the mono mix blocks.
+    #
+    # Each mono mix block contains 10 meters.
+    # -----------------------------------------------------------------------
+
+    mono_mix_start = (
+        stereo_input_start
+        + 3 * STEREO_INPUT_METERS
+        + 20
+    )
+
+    MIX_MONO_METERS = 10
+
+    for mix in range(4):
+        offset = (
+            mono_mix_start
+            + mix * MIX_MONO_METERS
+        ) * meter_size
+
+        if offset + meter_size > len(raw):
+            break
+
+        db = meter_db(
+            raw[offset:offset + meter_size]
+        )
+
+        events.append(
+            f'Mix {mix + 1} Meter: {db:.2f} dB'
+        )
+
+    # -----------------------------------------------------------------------
+    # Stereo mixes
+    #
+    # Mix 5-6
+    # Mix 7-8
+    # Mix 9-10
+    # LR
+    #
+    # Each block contains 20 meters:
+    #   10 L
+    #   10 R
+    #
+    # The first two values are the normal L/R meter values.
+    # -----------------------------------------------------------------------
+
+    stereo_mix_start = (
+        mono_mix_start
+        + 4 * MIX_MONO_METERS
+    )
+
+    MIX_STEREO_METERS = 20
+
+    stereo_mix_names = (
+        'Mix 5-6',
+        'Mix 7-8',
+        'Mix 9-10',
+        'LR',
+    )
+
+    for mix, name in enumerate(stereo_mix_names):
+        offset = (
+            stereo_mix_start
+            + mix * MIX_STEREO_METERS
+        ) * meter_size
+
+        if offset + (2 * meter_size) > len(raw):
+            break
+
+        left = meter_db(
+            raw[offset:offset + meter_size]
+        )
+
+        right = meter_db(
+            raw[offset + meter_size:
+                offset + (2 * meter_size)]
+        )
+
+        events.append(
+            f'{name} Meter: '
+            f'L {left:.2f} dB, '
+            f'R {right:.2f} dB'
+        )
+
+    return events
+
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 
@@ -606,6 +886,9 @@ def main() -> None:
 
             # log('Requesting system state...', log_file)
             # sock.sendall(GET_SYSTEM_STATE)
+
+            log('Enabling meter data...', log_file)
+            sock.sendall(METER_ON)
 
             while True:
                 data = sock.recv(4096)

@@ -191,3 +191,30 @@ impl Parameter {
         })
     }
 }
+
+/// Qu meter groups.
+///
+/// These correspond to the fixed meter blocks in the Qu-16 meter stream.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MeterBlock {
+    MonoInput(u8),
+    StereoInput(u8),
+    MonoMix(u8),
+    StereoMix(u8),
+    Monitor,
+    Fx(u8),
+}
+
+impl MeterBlock {
+    /// Number of 16-bit meter values in one block.
+    pub const fn value_count(self) -> usize {
+        match self {
+            Self::MonoInput(_) => 10,
+            Self::StereoInput(_) => 20,
+            Self::MonoMix(_) => 10,
+            Self::StereoMix(_) => 20,
+            Self::Monitor => 16,
+            Self::Fx(_) => 80,
+        }
+    }
+}

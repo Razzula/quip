@@ -1,16 +1,17 @@
-use crate::state::{ChannelRef, MixerState};
+use crate::state::{ChannelRef, MeterState, MixerState};
 use qu::{
+    channels::Channel,
     faders::fader_to_db,
     messages::QuEvent,
     parameters::Parameter,
-    channels::Channel,
 };
 
-pub fn handle_event(state: &mut MixerState, event: QuEvent) {
+pub fn handle_event(
+    mixer: &mut MixerState,
+    meters: &mut MeterState,
+    event: QuEvent,
+) {
     match event {
-        // Qu supports MIDI Active Sensing over its TCP/IP Ethernet connection to detect connection
-        // status. Qu will send an initial Active Sense byte (FE) once an Ethernet connection is established,
-        // and then once every 300ms or so during any period of inactivity.
         QuEvent::ActiveSense => {
             // Qu also responds to Active Sense. If it receives an Active Sense byte it will expect to receive
             // regular MIDI data from that point onwards (either valid control data, or more Active Sense bytes
@@ -19,18 +20,22 @@ pub fn handle_event(state: &mut MixerState, event: QuEvent) {
         }
 
         QuEvent::Fader { channel, value } => {
-            state.set_fader(
+            mixer.set_fader(
                 channel,
                 fader_to_db(value),
             );
         }
 
         QuEvent::Mute { channel, muted } => {
-            state.set_muted(channel, muted);
+            mixer.set_muted(channel, muted);
         }
 
         QuEvent::Name { channel, name } => {
-            state.set_name(channel, name);
+            mixer.set_name(channel, name);
+        }
+
+        QuEvent::Meters { values } => {
+            meters.update(&values);
         }
 
         QuEvent::Parameter {
@@ -55,7 +60,7 @@ pub fn handle_event(state: &mut MixerState, event: QuEvent) {
 
             let assigned = value & 0x40 != 0;
 
-            state.set_mute_group_assignment(
+            mixer.set_mute_group_assignment(
                 mute_group,
                 channel,
                 assigned,

@@ -2,11 +2,24 @@ use qu::channels::Channel;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuState {
+    pub mixer: MixerState,
+    pub meters: MeterState,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MixerState {
     pub inputs: [ChannelState; 16],
     pub stereo: [ChannelState; 3],
     pub mixes: [ChannelState; 8],
     pub mute_groups: [MuteGroupState; 4],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeterState {
+    pub inputs: [f32; 16],
+    pub stereo: [[f32; 2]; 3],
+    pub mixes: [[f32; 2]; 8],
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +98,16 @@ impl Default for MixerState {
                 MuteGroupState::new("MG3"),
                 MuteGroupState::new("MG4"),
             ],
+        }
+    }
+}
+
+impl Default for MeterState {
+    fn default() -> Self {
+        Self {
+            inputs: [f32::NEG_INFINITY; 16],
+            stereo: [[f32::NEG_INFINITY; 2]; 3],
+            mixes: [[f32::NEG_INFINITY; 2]; 8],
         }
     }
 }
@@ -294,11 +317,99 @@ impl MixerState {
             if !group.channels.contains(&channel) {
                 group.channels.push(channel);
             }
-        } else {
+        }
+        else {
             group.channels.retain(|current| *current != channel);
         }
 
         true
+    }
+}
+
+impl MeterState {
+    pub fn update(&mut self, values: &[qu::messages::MeterValue]) {
+        /*
+         * Qu-16 meter layout:
+         *
+         * 16 × Mono Input blocks (10 meters)
+         * 80 unused
+         * 3 × Stereo Input blocks (20 meters)
+         * 20 unused
+         * 4 × Mono Mix blocks (10 meters)
+         * 4 × Stereo Mix blocks (20 meters)
+         * 1 × Stereo Monitor block (16 meters)
+         * 4 × Stereo FX blocks (80 meters)
+         */
+
+        // Mono inputs: first meter = Post Preamp.
+        for channel in 0..16 {
+            let index = channel * 10;
+
+            if let Some(meter) = values.get(index) {
+                self.inputs[channel] = meter.db;
+            }
+        }
+
+        // Stereo inputs: first L/R meters = Post Preamp L/R.
+        let stereo_offset = (16 * 10) + 80;
+
+        for channel in 0..3 {
+            let index = stereo_offset + channel * 20;
+
+            if let (Some(left), Some(right)) =
+                (values.get(index), values.get(index + 10))
+            {
+                self.stereo[channel] = [
+                    left.db,
+                    right.db,
+                ];
+            }
+        }
+
+        // Mono mixes: first meter = TB/SigGen.
+        let mono_mix_offset =
+            stereo_offset + (3 * 20) + 20;
+
+        for channel in 0..4 {
+            let index =
+                mono_mix_offset + channel * 10;
+
+            if let Some(meter) = values.get(index) {
+                self.mixes[channel] = [
+                    meter.db,
+                    meter.db,
+                ];
+            }
+        }
+
+        // Stereo mixes:
+        // Mix 5-6, Mix 7-8, Mix 9-10, LR.
+        let stereo_mix_offset =
+            mono_mix_offset + (4 * 10);
+
+        for channel in 0..4 {
+            let index =
+                stereo_mix_offset + channel * 20;
+
+            if let (Some(left), Some(right)) =
+                (values.get(index), values.get(index + 10))
+            {
+                self.mixes[channel + 4] = [
+                    left.db,
+                    right.db,
+                ];
+            }
+        }
+    }
+
+    pub fn from_values(
+        values: &[qu::messages::MeterValue],
+    ) -> Self {
+        let mut state = Self::default();
+
+        state.update(values);
+
+        state
     }
 }
 

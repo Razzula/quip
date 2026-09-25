@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import type { MixerState } from '@quip/quip';
-import { applyChange, isMixerChange, isMixerState, patchState } from '../utils/qu';
+import type { MeterState, MixerState } from '@quip/quip';
+import {
+    DEFAULT_METERS,
+    applyChange,
+    isMeterState,
+    isMixerChange,
+    isMixerState,
+    patchState,
+} from '../utils/qu';
 import { parseMessage } from '../utils/ipc';
 
 export type QuStatus =
@@ -46,6 +53,7 @@ function isQuStatus(message: unknown): message is QuStatus {
 
 export function useMixerWebSocket(initialState: MixerState) {
     const [state, setState] = useState<MixerState>(initialState);
+    const [meters, setMeters] = useState<MeterState>(DEFAULT_METERS);
     const [isConnected, setIsConnected] = useState(false);
     const [quStatus, setQuStatus] = useState<QuStatus>({
         state: 'disconnected',
@@ -99,7 +107,7 @@ export function useMixerWebSocket(initialState: MixerState) {
             }
 
             socket.onmessage = (event) => {
-                console.log('WebSocket message received:', event.data);
+                // console.log('WebSocket message received:', event.data);
 
                 try {
                     const message = parseMessage(event.data);
@@ -111,6 +119,11 @@ export function useMixerWebSocket(initialState: MixerState) {
 
                     if (isMixerState(message)) {
                         setState((current) => patchState(current, message));
+                        return;
+                    }
+
+                    if (isMeterState(message)) {
+                        setMeters(message);
                         return;
                     }
 
@@ -146,6 +159,8 @@ export function useMixerWebSocket(initialState: MixerState) {
     return {
         state,
         setState,
+        meters,
+        setMeters,
         socket: socketRef,
         isConnected,
         quStatus,

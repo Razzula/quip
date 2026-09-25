@@ -12,7 +12,13 @@ import './_colours.scss';
 const initialState = structuredClone(DEFAULT_STATE);
 
 function App() {
-    const { state, socket, isConnected, quStatus } = useMixerWebSocket(initialState);
+    const {
+        state,
+        meters,
+        socket,
+        isConnected,
+        quStatus,
+    } = useMixerWebSocket(initialState);
 
     const mainMix = state.mixes[state.mixes.length - 1];
     const mixes = state.mixes.slice(0, -1);
@@ -32,7 +38,8 @@ function App() {
                 'data-active-side',
                 'left',
             );
-        } else if (touch.clientX >= width - edgeWidth) {
+        }
+        else if (touch.clientX >= width - edgeWidth) {
             mobileLayoutRef.current?.setAttribute(
                 'data-active-side',
                 'right',
@@ -136,6 +143,10 @@ function App() {
                             ...state.inputs,
                             ...state.stereo,
                         ]}
+                        meters={[
+                            ...meters.inputs,
+                            ...meters.stereo,
+                        ]}
                         {...channelBankProps}
                     />
                 </MixerSection>
@@ -143,6 +154,7 @@ function App() {
                 <MixerSection title="Mixes">
                     <ChannelBank
                         channels={[...state.mixes]}
+                        meters={meters.mixes}
                         {...channelBankProps}
                     />
                 </MixerSection>
@@ -156,6 +168,10 @@ function App() {
                                 ...state.inputs,
                                 ...state.stereo,
                             ]}
+                            meters={[
+                                ...meters.inputs,
+                                ...meters.stereo,
+                            ]}
                             {...channelBankProps}
                         />
                     </MixerSection>
@@ -163,6 +179,7 @@ function App() {
                     <MixerSection title="Mixes">
                         <ChannelBank
                             channels={mixes}
+                            meters={meters.mixes.slice(0, -1)}
                             {...channelBankProps}
                         />
                     </MixerSection>
@@ -175,6 +192,7 @@ function App() {
                     >
                         <ChannelBank
                             channels={[mainMix]}
+                            meters={[meters.mixes[meters.mixes.length - 1]]}
                             {...channelBankProps}
                         />
                     </MixerSection>
@@ -192,6 +210,10 @@ function App() {
                             ...state.inputs,
                             ...state.stereo,
                         ]}
+                        meters={[
+                            ...meters.inputs,
+                            ...meters.stereo,
+                        ]}
                         {...channelBankProps}
                     />
                 </MixerSection>
@@ -199,6 +221,7 @@ function App() {
                 <MixerSection title="Mixes">
                     <ChannelBank
                         channels={[...state.mixes]}
+                        meters={meters.mixes}
                         {...channelBankProps}
                     />
                 </MixerSection>

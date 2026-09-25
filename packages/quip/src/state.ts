@@ -19,6 +19,12 @@ export interface MixerState {
     muteGroups: MuteGroupState[];
 }
 
+export interface MeterState {
+    inputs: (number | null)[];
+    stereo: [number | null, number | null][];
+    mixes: [number | null, number | null][];
+}
+
 function channel(id: string): ChannelState {
     return {
         id,
@@ -66,48 +72,63 @@ export function channelRef(channel: ChannelState | MuteGroupState): ChannelRef {
         return {
             kind: 'Input',
             number: Number(channel.id.slice(2)),
-        }
+        };
     }
 
     if (channel.id.startsWith('ST')) {
         return {
             kind: 'Stereo',
             number: Number(channel.id.slice(2)),
-        }
+        };
     }
 
     switch (channel.id) {
         case 'MIX1':
-            return { kind: 'Mix', number: 1 }
+            return { kind: 'Mix', number: 1 };
+
         case 'MIX2':
-            return { kind: 'Mix', number: 2 }
+            return { kind: 'Mix', number: 2 };
+
         case 'MIX3':
-            return { kind: 'Mix', number: 3 }
+            return { kind: 'Mix', number: 3 };
+
         case 'MIX4':
-            return { kind: 'Mix', number: 4 }
+            return { kind: 'Mix', number: 4 };
+
         case 'MIX5-6':
-            return { kind: 'Mix', number: 5 }
+            return { kind: 'Mix', number: 5 };
+
         case 'MIX7-8':
-            return { kind: 'Mix', number: 6 }
+            return { kind: 'Mix', number: 6 };
+
         case 'MIX9-10':
-            return { kind: 'Mix', number: 7 }
+            return { kind: 'Mix', number: 7 };
+
         case 'LR':
-            return { kind: 'Lr' }
+            return { kind: 'Lr' };
     }
 
     if (channel.id.startsWith('MG')) {
         return {
             kind: 'MuteGroup',
             number: Number(channel.id.slice(2)),
-        }
+        };
     }
 
-    throw new Error(`Unknown channel: ${channel.name}`)
+    throw new Error(`Unknown channel: ${channel.name}`);
 }
 
 export const DEFAULT_STATE: MixerState = {
-    inputs: Array.from({ length: 16 }, (_, i) => channel(`CH${i + 1}`)),
-    stereo: Array.from({ length: 3 }, (_, i) => channel(`ST${i + 1}`)),
+    inputs: Array.from(
+        { length: 16 },
+        (_, i) => channel(`CH${i + 1}`),
+    ),
+
+    stereo: Array.from(
+        { length: 3 },
+        (_, i) => channel(`ST${i + 1}`),
+    ),
+
     mixes: [
         channel('MIX1'),
         channel('MIX2'),
@@ -118,5 +139,23 @@ export const DEFAULT_STATE: MixerState = {
         channel('MIX9-10'),
         channel('LR'),
     ],
-    muteGroups: Array.from({ length: 4 }, (_, i) => muteGroup(`MG${i + 1}`)),
+
+    muteGroups: Array.from(
+        { length: 4 },
+        (_, i) => muteGroup(`MG${i + 1}`),
+    ),
+};
+
+export const DEFAULT_METERS: MeterState = {
+    inputs: Array.from({ length: 16 }, () => null),
+
+    stereo: Array.from(
+        { length: 3 },
+        () => [null, null],
+    ),
+
+    mixes: Array.from(
+        { length: 8 },
+        () => [null, null],
+    ),
 };

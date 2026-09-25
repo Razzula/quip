@@ -115,7 +115,8 @@ mod data {
                     actual_db.is_infinite() && actual_db.is_sign_negative(),
                     "raw 0x{raw:02X}: expected -inf dB, got {actual_db}"
                 );
-            } else {
+            }
+            else {
                 assert_db(actual_db, expected_db);
             }
         }

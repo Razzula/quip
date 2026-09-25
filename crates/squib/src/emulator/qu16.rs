@@ -5,6 +5,7 @@
 
 use qu::messages::hex;
 
+use rand::RngExt;
 use std::io;
 
 use qu::{
@@ -19,9 +20,9 @@ use qu::{
     },
 };
 use quip::{
-    state::{MixerState, ChannelRef},
-    qu_to_state::handle_event,
+    state::{ChannelRef, MeterState, MixerState},
     qu_from_state,
+    qu_to_state::handle_event,
 };
 
 use tokio::{
@@ -34,9 +35,15 @@ use tokio::{
 const FIRMWARE_MAJOR: u8 = 1;
 const FIRMWARE_MINOR: u8 = 99;
 
+/// Interval between simulated meter packets.
+const METER_INTERVAL: Duration = Duration::from_millis(50);
+
 pub async fn handle_client(mut stream: TcpStream) -> io::Result<()> {
     let mut parser = Parser::new();
     let mut state = MixerState::default();
+    let mut meters = MeterState::default();
+
+    let mut meters_enabled = false;
 
     // TCP is a byte stream, not a message stream.
     // Keep bytes here so a SysEx message split across TCP reads
@@ -45,6 +52,9 @@ pub async fn handle_client(mut stream: TcpStream) -> io::Result<()> {
 
     // Qu sends Active Sense approximately every 300 ms.
     let mut active_sense_interval = time::interval(Duration::from_millis(300));
+
+    // Meter data is continuously transmitted once enabled.
+    let mut meter_interval = time::interval(METER_INTERVAL);
 
     let mut buffer = [0u8; 4096];
 
@@ -64,17 +74,28 @@ pub async fn handle_client(mut stream: TcpStream) -> io::Result<()> {
                 for event in parser.push(data) {
                     println!("[qu-16 ] RX: {}", event.describe());
 
-                    handle_event(&mut state, event);
-
-                    // echo
-                    // XXX: needs to actually store the changes for multi-device
-                    write_all(&mut stream, data).await?;
+                    handle_event(&mut state, &mut meters, event);
                 }
+
+                // echo
+                // XXX: needs to actually store the changes for multi-device
+                write_all(&mut stream, data).await?;
 
                 // Keep a copy for protocol-level SysEx detection.
                 rx_buffer.extend_from_slice(data);
 
                 while let Some(message) = next_sysex(&mut rx_buffer) {
+                    if let Some(enabled) = handle_meter_control(&message) {
+                        meters_enabled = enabled;
+
+                        println!(
+                            "[qu-16 ] Meter stream: {}",
+                            if enabled { "ON" } else { "OFF" }
+                        );
+
+                        continue;
+                    }
+
                     handle_sysex(
                         &mut stream,
                         &state,
@@ -87,6 +108,14 @@ pub async fn handle_client(mut stream: TcpStream) -> io::Result<()> {
                 if rx_buffer.len() > 64 * 1024 {
                     rx_buffer.clear();
                 }
+            }
+
+            _ = meter_interval.tick(), if meters_enabled => {
+                randomise_meters(&mut meters);
+
+                let message = meter_data(&meters);
+
+                write_all(&mut stream, &message).await?;
             }
 
             _ = active_sense_interval.tick() => {
@@ -107,6 +136,34 @@ async fn handle_sysex(
     }
 
     Ok(())
+}
+
+/// Handle a Qu meter control SysEx message.
+///
+/// `12 01` enables continuous meter transmission.
+/// `12 00` disables continuous meter transmission.
+fn handle_meter_control(message: &[u8]) -> Option<bool> {
+    if message.len() != 12 {
+        return None;
+    }
+
+    if message[0..8] != protocol::SYSEX_HEADER {
+        return None;
+    }
+
+    if message[9] != protocol::SYSEX_METER_CONTROL {
+        return None;
+    }
+
+    if message[11] != 0xf7 {
+        return None;
+    }
+
+    match message[10] {
+        0x00 => Some(false),
+        0x01 => Some(true),
+        _ => None,
+    }
 }
 
 async fn send_system_state(
@@ -434,6 +491,196 @@ async fn send_channel_names(
     }
 
     Ok(())
+}
+
+/// Generate random meter values for the subset of the Qu-16 meter stream
+/// currently represented by `MeterState`.
+fn randomise_meters(meters: &mut MeterState) {
+    let mut rng = rand::rng();
+
+    for value in &mut meters.inputs {
+        *value = rng.random_range(-60.0..=10.0);
+    }
+
+    for stereo in &mut meters.stereo {
+        stereo[0] = rng.random_range(-60.0..=10.0);
+        stereo[1] = rng.random_range(-60.0..=10.0);
+    }
+
+    for mix in &mut meters.mixes {
+        mix[0] = rng.random_range(-60.0..=10.0);
+        mix[1] = rng.random_range(-60.0..=10.0);
+    }
+}
+
+/// Construct a Qu-16 meter data SysEx message.
+///
+/// Only the input, stereo input, and mix meters represented by `MeterState`
+/// contain simulated values. Other meter positions are populated with
+/// -128 dB values.
+fn meter_data(meters: &MeterState) -> Vec<u8> {
+    let mut raw = Vec::new();
+
+    // ---------------------------------------------------------------------
+    // Mono Input blocks
+    // ---------------------------------------------------------------------
+
+    for input in &meters.inputs {
+        // Post Preamp
+        push_meter(&mut raw, *input);
+
+        // Remaining 9 meters in the block.
+        for _ in 0..9 {
+            push_meter(&mut raw, -128.0);
+        }
+    }
+
+    // 80 unused meters.
+    for _ in 0..80 {
+        push_meter(&mut raw, -128.0);
+    }
+
+    // ---------------------------------------------------------------------
+    // Stereo Input blocks
+    // ---------------------------------------------------------------------
+
+    for stereo in &meters.stereo {
+        // Post Preamp L
+        push_meter(&mut raw, stereo[0]);
+
+        // Remaining 9 L meters.
+        for _ in 0..9 {
+            push_meter(&mut raw, -128.0);
+        }
+
+        // Post Preamp R
+        push_meter(&mut raw, stereo[1]);
+
+        // Remaining 9 R meters.
+        for _ in 0..9 {
+            push_meter(&mut raw, -128.0);
+        }
+    }
+
+    // 20 unused meters.
+    for _ in 0..20 {
+        push_meter(&mut raw, -128.0);
+    }
+
+    // ---------------------------------------------------------------------
+    // Mono Mix blocks
+    // ---------------------------------------------------------------------
+
+    for mix in &meters.mixes[..4] {
+        // TB/SigGen
+        push_meter(&mut raw, mix[0]);
+
+        // Remaining 9 meters in the block.
+        for _ in 0..9 {
+            push_meter(&mut raw, -128.0);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Stereo Mix blocks
+    // ---------------------------------------------------------------------
+
+    for mix in &meters.mixes[4..8] {
+        // TB/SigGen L
+        push_meter(&mut raw, mix[0]);
+
+        // Remaining 9 L meters.
+        for _ in 0..9 {
+            push_meter(&mut raw, -128.0);
+        }
+
+        // TB/SigGen R
+        push_meter(&mut raw, mix[1]);
+
+        // Remaining 9 R meters.
+        for _ in 0..9 {
+            push_meter(&mut raw, -128.0);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Stereo Monitor
+    // ---------------------------------------------------------------------
+
+    for _ in 0..16 {
+        push_meter(&mut raw, -128.0);
+    }
+
+    // ---------------------------------------------------------------------
+    // Stereo FX
+    // ---------------------------------------------------------------------
+
+    for _ in 0..4 {
+        for _ in 0..83 {
+            push_meter(&mut raw, -128.0);
+        }
+    }
+
+    let encoded = encode_meter_data(&raw);
+
+    let mut message = Vec::with_capacity(
+        10 + encoded.len() + 1,
+    );
+
+    message.extend_from_slice(&protocol::SYSEX_HEADER);
+    message.push(protocol::SYSEX_METER_DATA);
+    message.extend_from_slice(&encoded);
+    message.push(0xf7);
+
+    message
+}
+
+/// Convert a dB value into the Qu meter's 16-bit 7Q8 representation.
+///
+/// Qu stores the signed value with an 0x8000 offset:
+///
+///     raw = (dB * 256) + 0x8000
+fn push_meter(raw: &mut Vec<u8>, db: f32) {
+    let value = if db <= -128.0 {
+        0x0000u16
+    }
+    else {
+        let signed = (db * 256.0)
+            .round()
+            .clamp(-32768.0, 32767.0) as i16;
+
+        (signed as i32 + 0x8000) as u16
+    };
+
+    raw.extend_from_slice(&value.to_be_bytes());
+}
+
+/// Encode raw meter bytes into Qu's 7-bit SysEx representation.
+///
+/// Seven raw bytes are represented by:
+///
+///     1 byte containing their high bits
+///     7 bytes containing their low 7 bits
+fn encode_meter_data(raw: &[u8]) -> Vec<u8> {
+    let mut encoded = Vec::with_capacity(
+        raw.len() + raw.len().div_ceil(7),
+    );
+
+    for chunk in raw.chunks(7) {
+        let mut high_bits = 0u8;
+
+        for (index, byte) in chunk.iter().enumerate() {
+            high_bits |= ((byte >> 7) & 0x01) << index;
+        }
+
+        encoded.push(high_bits);
+
+        for byte in chunk {
+            encoded.push(byte & 0x7f);
+        }
+    }
+
+    encoded
 }
 
 fn next_sysex(buffer: &mut Vec<u8>) -> Option<Vec<u8>> {

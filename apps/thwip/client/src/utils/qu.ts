@@ -1,4 +1,17 @@
-import type { ChannelRef, ChannelState, MixerChange, MixerState, MuteGroupState } from "@quip/quip"
+import type {
+    ChannelRef,
+    ChannelState,
+    MeterState,
+    MixerChange,
+    MixerState,
+    MuteGroupState,
+} from "@quip/quip";
+
+export const DEFAULT_METERS: MeterState = {
+    inputs: Array(16).fill(-Infinity),
+    stereo: Array.from({ length: 3 }, () => [-Infinity, -Infinity]),
+    mixes: Array.from({ length: 8 }, () => [-Infinity, -Infinity]),
+};
 
 function channelID(channel: ChannelRef): string {
     switch (channel.kind) {
@@ -15,14 +28,19 @@ function channelID(channel: ChannelRef): string {
                 case 3:
                 case 4:
                     return `MIX${channel.number}`;
+
                 case 5:
                     return 'MIX5-6';
+
                 case 6:
                     return 'MIX7-8';
+
                 case 7:
                     return 'MIX9-10';
+
                 case 8:
                     return 'LR';
+
                 default:
                     throw new Error(`Unknown mix: ${channel.number}`);
             }
@@ -215,9 +233,9 @@ export function patchState(
             ...current.mixes[i],
             ...channel,
         })),
-        muteGroups: received.muteGroups.map((channel, i) => ({
+        muteGroups: received.muteGroups.map((group, i) => ({
             ...current.muteGroups[i],
-            ...channel,
+            ...group,
         })),
     };
 }
@@ -230,9 +248,26 @@ export function isMixerState(value: unknown): value is MixerState {
     const state = value as Record<string, unknown>;
 
     return (
+        state.type === 'state' &&
         Array.isArray(state.inputs) &&
         Array.isArray(state.stereo) &&
-        Array.isArray(state.mixes)
+        Array.isArray(state.mixes) &&
+        Array.isArray(state.muteGroups)
+    );
+}
+
+export function isMeterState(value: unknown): value is MeterState {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+
+    const meters = value as Record<string, unknown>;
+
+    return (
+        meters.type === 'meters' &&
+        Array.isArray(meters.inputs) &&
+        Array.isArray(meters.stereo) &&
+        Array.isArray(meters.mixes)
     );
 }
 
