@@ -3,9 +3,53 @@ import type { MixerState } from '@quip/quip';
 import { applyChange, isMixerChange, isMixerState, patchState } from '../utils/qu';
 import { parseMessage } from '../utils/ipc';
 
+export type QuStatus =
+    | { state: 'disconnected' }
+    | { state: 'discovering' }
+    | { state: 'connecting'; name: string; address: string }
+    | { state: 'synchronising' }
+    | { state: 'connected'; name: string; address: string }
+    | { state: 'error'; message: string };
+
+function isQuStatus(message: unknown): message is QuStatus {
+    if (
+        typeof message !== 'object' ||
+        message === null ||
+        !('state' in message) ||
+        typeof message.state !== 'string'
+    ) {
+        return false;
+    }
+
+    switch (message.state) {
+        case 'disconnected':
+        case 'discovering':
+        case 'synchronising':
+            return true;
+
+        case 'connecting':
+        case 'connected':
+            return (
+                'name' in message &&
+                typeof message.name === 'string' &&
+                'address' in message &&
+                typeof message.address === 'string'
+            );
+
+        case 'error':
+            return 'message' in message && typeof message.message === 'string';
+
+        default:
+            return false;
+    }
+}
+
 export function useMixerWebSocket(initialState: MixerState) {
     const [state, setState] = useState<MixerState>(initialState);
     const [isConnected, setIsConnected] = useState(false);
+    const [quStatus, setQuStatus] = useState<QuStatus>({
+        state: 'disconnected',
+    });
 
     const socketRef = useRef<WebSocket | null>(null);
 
@@ -47,6 +91,7 @@ export function useMixerWebSocket(initialState: MixerState) {
                 }
 
                 setIsConnected(false);
+                setQuStatus({ state: 'disconnected' });
 
                 if (!disposed) {
                     retryTimeout = setTimeout(connect, 2000);
@@ -58,6 +103,11 @@ export function useMixerWebSocket(initialState: MixerState) {
 
                 try {
                     const message = parseMessage(event.data);
+
+                    if (isQuStatus(message)) {
+                        setQuStatus(message);
+                        return;
+                    }
 
                     if (isMixerState(message)) {
                         setState((current) => patchState(current, message));
@@ -98,5 +148,6 @@ export function useMixerWebSocket(initialState: MixerState) {
         setState,
         socket: socketRef,
         isConnected,
+        quStatus,
     };
 }

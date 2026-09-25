@@ -10,7 +10,7 @@ import './App.scss';
 const initialState = structuredClone(DEFAULT_STATE);
 
 function App() {
-    const { state, socket, isConnected } = useMixerWebSocket(initialState);
+    const { state, socket, isConnected, quStatus } = useMixerWebSocket(initialState);
 
     const mainMix = state.mixes[state.mixes.length - 1];
     const mixes = state.mixes.slice(0, -1);
@@ -27,14 +27,42 @@ function App() {
         muted: boolean,
     ) => {
         handleMuteChange(socket.current, channel, muted);
-    }
+    };
+
+    /*
+     * The controls should only be enabled when both:
+     *
+     *   1. the WebSocket is connected to thwip
+     *   2. thwip is connected and synchronised with the Qu
+     */
+    const mixerConnected = (isConnected && quStatus.state === 'connected');
 
     const channelBankProps = {
         muteGroups: state.muteGroups,
         onFaderChange,
         onMuteChange,
-        disabled: !isConnected,
+        disabled: !mixerConnected,
     };
+
+    const connectionLabel = !isConnected
+        ? 'Quip Disconnected'
+        : quStatus.state === 'disconnected'
+            ? 'Qu Disconnected'
+            : quStatus.state === 'discovering'
+                ? 'Discovering Qu'
+                : quStatus.state === 'connecting'
+                    ? `Connecting to ${quStatus.name || 'Qu'}`
+                    : quStatus.state === 'synchronising'
+                        ? 'Synchronising Qu'
+                        : quStatus.state === 'error'
+                            ? 'Qu Error'
+                            : `Connected to ${quStatus.name || 'Qu'}`;
+
+    const connectionClass = !isConnected
+        ? 'mixer__connection--disconnected'
+        : quStatus.state === 'connected'
+            ? 'mixer__connection--connected'
+            : 'mixer__connection--connecting';
 
     return (
         <main className="mixer">
@@ -43,14 +71,10 @@ function App() {
                     <h1>Quip</h1>
 
                     <span
-                        className={`mixer__connection${
-                            isConnected
-                                ? ' mixer__connection--connected'
-                                : ' mixer__connection--connecting'
-                        }`}
+                        className={`mixer__connection ${connectionClass}`}
                     >
                         <span className="mixer__connection-indicator" />
-                        {isConnected ? 'Connected' : 'Not Connected'}
+                        {connectionLabel}
                     </span>
                 </div>
 
@@ -76,7 +100,7 @@ function App() {
                                         muted,
                                     )
                                 }
-                                disabled={!isConnected}
+                                disabled={!mixerConnected}
                             />
                         </div>
                     ))}
@@ -154,7 +178,7 @@ function App() {
                 </MixerSection>
             </div>
         </main>
-    )
+    );
 }
 
 export default App;
