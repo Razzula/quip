@@ -3,9 +3,10 @@
     gap: 2px;
     padding: 4px;
     overflow-x: auto;
-    background: #191a1d;
-    border: 1px solid #292b30;
+    background: var(--colour-channel-bank-background);
+    border: 1px solid var(--colour-channel-bank-border);
     border-radius: 4px;
+    margin-bottom: 0.6rem;
 
     &--compact {
         width: fit-content;
@@ -17,16 +18,15 @@
         width: 100%;
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 6px;
-        overflow: hidden;
+        overflow-y: auto;
 
         .channel-strip {
             width: 100%;
             min-width: 0;
-        }
 
-        &--compact {
-            width: 100%;
-            min-width: 0;
+            &:nth-child(4n) {
+                grid-column: 4;
+            }
         }
     }
 }

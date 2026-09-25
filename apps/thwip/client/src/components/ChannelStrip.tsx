@@ -44,6 +44,14 @@ export function ChannelStrip({
     const dragging = useRef(false);
     const animationFrame = useRef<number | null>(null);
 
+    const faderPointer = useRef<{
+        active: boolean;
+        pointerType: string;
+    }>({
+        active: false,
+        pointerType: '',
+    });
+
     useEffect(() => {
         if (dragging.current) {
             setDisplayedFader(fader);
@@ -71,7 +79,10 @@ export function ChannelStrip({
                 1,
             );
 
-            if (progress >= 1 || Math.abs(target - start) < 0.01) {
+            if (
+                progress >= 1 ||
+                Math.abs(target - start) < 0.01
+            ) {
                 setDisplayedFader(target);
                 animationFrame.current = null;
                 return;
@@ -87,10 +98,12 @@ export function ChannelStrip({
             }
 
             setDisplayedFader(value);
-            animationFrame.current = requestAnimationFrame(animate);
+            animationFrame.current =
+                requestAnimationFrame(animate);
         };
 
-        animationFrame.current = requestAnimationFrame(animate);
+        animationFrame.current =
+            requestAnimationFrame(animate);
 
         return () => {
             if (animationFrame.current !== null) {
@@ -108,11 +121,126 @@ export function ChannelStrip({
         onFaderChange(value);
     };
 
-    const handleFaderPointerUp = () => {
+    const getFaderPosition = (
+        event: React.PointerEvent<HTMLDivElement>,
+    ) => {
+        const track = event.currentTarget.querySelector(
+            '.channel-strip__fader-track',
+        );
+
+        if (!track) {
+            return 0;
+        }
+
+        const rect = track.getBoundingClientRect();
+
+        if (rect.height <= 0) {
+            return 0;
+        }
+
+        const position =
+            ((rect.bottom - event.clientY) / rect.height) *
+            FADER_MAX_POSITION;
+
+        return Math.max(
+            0,
+            Math.min(FADER_MAX_POSITION, position),
+        );
+    };
+
+    const handleFaderPointerDown = (
+        event: React.PointerEvent<HTMLDivElement>,
+    ) => {
+        if (disabled) return;
+
+        const target = event.target as HTMLElement;
+
+        const isThumb =
+            target.closest(
+                '[data-fader-thumb="true"]',
+            ) !== null;
+
+        /*
+         * Touch and stylus interaction must begin on the thumb.
+         * The track itself does nothing.
+         *
+         * Mouse interaction may begin anywhere on the control.
+         */
+        if (
+            event.pointerType !== 'mouse' &&
+            !isThumb
+        ) {
+            return;
+        }
+
+        faderPointer.current = {
+            active: true,
+            pointerType: event.pointerType,
+        };
+
+        dragging.current = true;
+
+        event.currentTarget.setPointerCapture(
+            event.pointerId,
+        );
+
+        /*
+         * Mouse can jump directly to the clicked position.
+         *
+         * Touch/stylus deliberately does not update here:
+         * the pointer is already on the thumb and movement
+         * will determine the new value.
+         */
+        if (event.pointerType === 'mouse') {
+            handleFaderChange(
+                getFaderPosition(event),
+            );
+        }
+    };
+
+    const handleFaderPointerMove = (
+        event: React.PointerEvent<HTMLDivElement>,
+    ) => {
+        if (!faderPointer.current.active) {
+            return;
+        }
+
+        handleFaderChange(
+            getFaderPosition(event),
+        );
+    };
+
+    const handleFaderPointerUp = (
+        event: React.PointerEvent<HTMLDivElement>,
+    ) => {
+        if (faderPointer.current.active) {
+            event.currentTarget.releasePointerCapture(
+                event.pointerId,
+            );
+        }
+
+        faderPointer.current.active = false;
         dragging.current = false;
     };
 
-    const faderPosition = faderValueToPosition(displayedFader);
+    const handleFaderPointerCancel = (
+        event: React.PointerEvent<HTMLDivElement>,
+    ) => {
+        if (faderPointer.current.active) {
+            event.currentTarget.releasePointerCapture(
+                event.pointerId,
+            );
+        }
+
+        faderPointer.current.active = false;
+        dragging.current = false;
+    };
+
+    const faderPosition =
+        faderValueToPosition(displayedFader);
+
+    const faderPercentage =
+        (faderPosition / FADER_MAX_POSITION) * 100;
 
     return (
         <div
@@ -143,25 +271,44 @@ export function ChannelStrip({
                     <span>-∞</span>
                 </div>
 
-                <input
-                    type="range"
-                    disabled={disabled}
-                    min={0}
-                    max={FADER_MAX_POSITION}
-                    step={0.1}
-                    value={faderPosition}
-                    onChange={(event) =>
-                        handleFaderChange(
-                            Number(event.target.value),
-                        )
+                <div
+                    className="channel-strip__fader-control"
+                    onPointerDown={
+                        handleFaderPointerDown
                     }
-                    onPointerDown={() => {
-                        dragging.current = true;
-                    }}
-                    onPointerUp={handleFaderPointerUp}
-                    onPointerCancel={handleFaderPointerUp}
-                    aria-label={`${channel.name || channel.id} fader`}
-                />
+                    onPointerMove={
+                        handleFaderPointerMove
+                    }
+                    onPointerUp={
+                        handleFaderPointerUp
+                    }
+                    onPointerCancel={
+                        handleFaderPointerCancel
+                    }
+                    aria-label={`${
+                        channel.name || channel.id
+                    } fader`}
+                    role="slider"
+                    aria-orientation="vertical"
+                    aria-valuemin={FADER_MIN}
+                    aria-valuemax={10}
+                    aria-valuenow={
+                        displayedFader === -Infinity
+                            ? FADER_MIN
+                            : displayedFader
+                    }
+                    aria-disabled={disabled}
+                >
+                    <div className="channel-strip__fader-track">
+                        <div
+                            className="channel-strip__fader-thumb"
+                            data-fader-thumb="true"
+                            style={{
+                                bottom: `${faderPercentage}%`,
+                            }}
+                        />
+                    </div>
+                </div>
             </div>
 
             <MuteButton

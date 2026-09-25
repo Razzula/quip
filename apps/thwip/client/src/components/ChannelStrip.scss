@@ -8,24 +8,24 @@
     height: 100%;
     min-height: 320px;
     padding: 8px 6px 7px;
-    background: #202226;
-    border: 1px solid #2b2e33;
+    background: var(--colour-surface);
+    border: 1px solid var(--colour-border);
     border-radius: 4px;
 
     transition:
         background 300ms ease,
-        border-color 300ms ease;
+        border-colour 300ms ease;
 
     &--muted {
-        background: #2b2224;
-        border-color: #381e22;
+        background: var(--colour-danger-surface);
+        border-colour: var(--colour-danger-border);
     }
 
     &__name {
         width: 100%;
         margin-bottom: 8px;
         overflow: hidden;
-        color: #d1d5db;
+        color: var(--colour-text);
         font-size: 11px;
         font-weight: 600;
         text-align: center;
@@ -38,7 +38,7 @@
         width: 100%;
         min-height: 17px;
         margin-bottom: 5px;
-        color: #9ca3af;
+        color: var(--colour-text-muted);
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 10px;
         text-align: center;
@@ -50,6 +50,8 @@
         display: block;
         width: 100%;
         height: 260px;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
         flex: 0 0 260px;
         min-height: 0;
         container-type: size;
@@ -65,72 +67,101 @@
         justify-content: space-between;
         width: 25px;
         padding: 0;
-        color: #666b73;
+        color: var(--colour-fader-scale);
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         font-size: 8px;
-        text-align: right;
+        text-align: center;
         pointer-events: none;
+        user-select: none;
     }
 
-    &__fader input {
+    /*
+     * The entire fader is the mouse interaction area.
+     *
+     * On touch/stylus, pointer-down is accepted only when
+     * the thumb itself was touched.
+     */
+    &__fader-control {
         position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 260px;
-        height: 18px;
-        margin: 0;
-        transform: translate(-50%, -50%) rotate(-90deg);
-        appearance: none;
-        background: transparent;
-        cursor: pointer;
+        inset: 0;
+        cursor: grab;
+        touch-action: none;
 
-        &:disabled {
-            cursor: not-allowed;
-            opacity: 0.45;
-        }
-
-        &::-webkit-slider-runnable-track {
-            height: 4px;
-            background: #454950;
-            border-radius: 2px;
-        }
-
-        &::-webkit-slider-thumb {
-            width: 18px;
-            height: 34px;
-            margin-top: -15px;
-            appearance: none;
-            background: #d1d5db;
-            border: 1px solid #8b8f96;
-            border-radius: 3px;
-            cursor: grab;
-        }
-
-        &::-webkit-slider-thumb:active {
+        &:active {
             cursor: grabbing;
         }
 
-        &:disabled::-webkit-slider-thumb {
+        &[aria-disabled='true'] {
             cursor: not-allowed;
+            opacity: 0.45;
         }
+    }
 
-        &::-moz-range-track {
-            height: 4px;
-            background: #454950;
-            border-radius: 2px;
-        }
+    /*
+     * The track represents the complete travel of the
+     * thumb's CENTRE.
+     *
+     * The 17px inset is half of the 34px thumb height.
+     * Therefore:
+     *
+     *   track top    = thumb centre at maximum
+     *   track bottom = thumb centre at minimum
+     *
+     * The thumb consequently overhangs the fader by 17px
+     * at both extremes, without covering anything outside
+     * the fader container.
+     */
+    &__fader-track {
+        position: absolute;
+        inset: 0;
+        left: 50%;
+        width: 4px;
+        transform: translateX(-50%);
+        background: var(--colour-fader-track);
+        border-radius: 2px;
+    }
 
-        &::-moz-range-thumb {
-            width: 18px;
-            height: 34px;
-            background: #d1d5db;
-            border: 1px solid #8b8f96;
-            border-radius: 3px;
-            cursor: grab;
-        }
+    /*
+     * bottom is the position of the THUMB CENTRE.
+     *
+     * translateY(50%) moves the thumb down by half its
+     * height, so its centre sits exactly on the position
+     * represented by bottom.
+     */
+    &__fader-thumb {
+        position: absolute;
+        left: 50%;
+        width: 22px;
+        height: 38px;
+        transform: translate(-50%, 50%);
 
-        &:disabled::-moz-range-thumb {
-            cursor: not-allowed;
+        background:
+            linear-gradient(to bottom,
+                var(--colour-fader-thumb) 0%,
+                var(--colour-fader-thumb-mid) 45%,
+                var(--colour-fader-thumb-dark) 100%);
+
+        border: 1px solid var(--colour-fader-thumb-border);
+        border-radius: 4px;
+
+        box-shadow:
+            0 1px 2px var(--colour-fader-thumb-shadow),
+            inset 0 1px 0 var(--colour-fader-thumb-highlight),
+            inset 0 -1px 0 var(--colour-fader-thumb-shadow-soft);
+
+        pointer-events: auto;
+
+        &::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 5px;
+            right: 5px;
+            height: 1px;
+            transform: translateY(-50%);
+
+            background: var(--colour-fader-indicator);
+            opacity: 0.55;
         }
     }
 
@@ -141,10 +172,6 @@
             height: auto;
             flex: 1 1 auto;
             min-height: 100px;
-        }
-
-        &__fader input {
-            width: calc(100cqh - 18px);
         }
     }
 }

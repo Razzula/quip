@@ -1,0 +1,42 @@
+:root {
+    --colour-text: #e5e7eb;
+    --colour-text-muted: #9ca3af;
+    --colour-text-muted-disabled: #666a70;
+    --colour-text-disabled: #737780;
+
+    --colour-background: #111214;
+
+    --colour-surface: #202226;
+    --colour-surface-hover: #292c31;
+    --colour-surface-disabled: #24262a;
+
+    --colour-border: #2b2e33;
+    --colour-border-disabled: #303238;
+
+    --colour-accent: #7dd3a8;
+    --colour-danger: #d37d7d;
+    --colour-danger-surface: #2b2224;
+    --colour-danger-border: #381e22;
+
+    --colour-mute-text: #aeb2b9;
+    --colour-mute-border: #3b3e44;
+    --colour-mute-active-background: #9b3030;
+    --colour-mute-active-border: #c04a4a;
+    --colour-mute-active-background-disabled: #573033;
+    --colour-mute-active-border-disabled: #684043;
+
+    --colour-channel-bank-background: #191a1d;
+    --colour-channel-bank-border: #292b30;
+
+    --colour-fader-scale: #666b73;
+    --colour-fader-track: #454950;
+
+    --colour-fader-thumb: #f1f3f5;
+    --colour-fader-thumb-mid: #d9dce0;
+    --colour-fader-thumb-dark: #b9bdc2;
+    --colour-fader-thumb-border: #8b8f96;
+    --colour-fader-thumb-shadow: rgb(0 0 0 / 45%);
+    --colour-fader-thumb-highlight: rgb(255 255 255 / 65%);
+    --colour-fader-thumb-shadow-soft: rgb(0 0 0 / 15%);
+    --colour-fader-indicator: #777c83;
+}

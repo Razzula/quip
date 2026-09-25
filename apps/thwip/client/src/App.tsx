@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { DEFAULT_STATE, type ChannelState, type MuteGroupState } from '@quip/quip';
 import { ChannelBank } from './components/ChannelBank';
 import { MixerSection } from './components/MixerSection';
@@ -6,6 +7,7 @@ import { useMixerWebSocket } from './hooks/useMixerWebSocket.ts';
 import { handleFaderChange, handleMuteChange } from './utils/mixerActions';
 
 import './App.scss';
+import './_colours.scss';
 
 const initialState = structuredClone(DEFAULT_STATE);
 
@@ -15,12 +17,35 @@ function App() {
     const mainMix = state.mixes[state.mixes.length - 1];
     const mixes = state.mixes.slice(0, -1);
 
+    const mobileLayoutRef = useRef<HTMLDivElement>(null);
+
+    const onMobileTouchStart = (
+        event: React.TouchEvent<HTMLElement>,
+    ) => {
+        const touch = event.touches[0];
+        const width = window.innerWidth;
+
+        const edgeWidth = Math.min(80, width * 0.15);
+
+        if (touch.clientX <= edgeWidth) {
+            mobileLayoutRef.current?.setAttribute(
+                'data-active-side',
+                'left',
+            );
+        } else if (touch.clientX >= width - edgeWidth) {
+            mobileLayoutRef.current?.setAttribute(
+                'data-active-side',
+                'right',
+            );
+        }
+    };
+
     const onFaderChange = (
         channel: ChannelState,
         value: number,
     ) => {
         handleFaderChange(socket.current, channel, value);
-    }
+    };
 
     const onMuteChange = (
         channel: ChannelState | MuteGroupState,
@@ -29,13 +54,8 @@ function App() {
         handleMuteChange(socket.current, channel, muted);
     };
 
-    /*
-     * The controls should only be enabled when both:
-     *
-     *   1. the WebSocket is connected to thwip
-     *   2. thwip is connected and synchronised with the Qu
-     */
-    const mixerConnected = (isConnected && quStatus.state === 'connected');
+    const mixerConnected =
+        isConnected && quStatus.state === 'connected';
 
     const channelBankProps = {
         muteGroups: state.muteGroups,
@@ -65,11 +85,13 @@ function App() {
             : 'mixer__connection--connecting';
 
     return (
-        <main className="mixer">
+        <main
+            className="mixer"
+            onTouchStart={onMobileTouchStart}
+        >
             <header className="mixer__header">
                 <div>
                     <h1>Quip</h1>
-
                     <span
                         className={`mixer__connection ${connectionClass}`}
                     >
@@ -159,7 +181,11 @@ function App() {
                 )}
             </div>
 
-            <div className="mixer__mobile-layout">
+            <div
+                ref={mobileLayoutRef}
+                className="mixer__mobile-layout"
+                data-active-side="right"
+            >
                 <MixerSection title="Inputs">
                     <ChannelBank
                         channels={[

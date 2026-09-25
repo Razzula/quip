@@ -3,10 +3,10 @@ import type { ChannelRef, ChannelState, MixerChange, MixerState, MuteGroupState 
 function channelID(channel: ChannelRef): string {
     switch (channel.kind) {
         case 'Input':
-            return `CH${channel.number}`
+            return `CH${channel.number}`;
 
         case 'Stereo':
-            return `ST${channel.number}`
+            return `ST${channel.number}`;
 
         case 'Mix':
             switch (channel.number) {
@@ -14,21 +14,22 @@ function channelID(channel: ChannelRef): string {
                 case 2:
                 case 3:
                 case 4:
-                    return `MIX${channel.number}`
+                    return `MIX${channel.number}`;
                 case 5:
-                    return 'MIX5-6'
+                    return 'MIX5-6';
                 case 6:
-                    return 'MIX7-8'
+                    return 'MIX7-8';
                 case 7:
-                    return 'MIX9-10'
+                    return 'MIX9-10';
                 case 8:
-                    return 'LR'
+                    return 'LR';
                 default:
-                    throw new Error(`Unknown mix: ${channel.number}`)
+                    throw new Error(`Unknown mix: ${channel.number}`);
             }
+
         case 'Lr':
-            return 'LR'
-        
+            return 'LR';
+
         case 'MuteGroup':
             return `MG${channel.number}`;
     }
@@ -67,7 +68,7 @@ export function applyChange(
     change: MixerChange,
 ): MixerState {
     switch (change.type) {
-        case 'Fader':
+        case 'Fader': {
             const value = change.value ?? -Infinity;
 
             switch (change.channel.kind) {
@@ -101,10 +102,11 @@ export function applyChange(
                             { fader: value },
                         ),
                     };
-                
+
                 default:
-                    return {...state};
+                    return state;
             }
+        }
 
         case 'Mute':
             switch (change.channel.kind) {
@@ -138,7 +140,7 @@ export function applyChange(
                             { muted: change.muted },
                         ),
                     };
-                
+
                 case 'MuteGroup':
                     return {
                         ...state,
@@ -149,9 +151,51 @@ export function applyChange(
                         ),
                     };
             }
-    }
 
-    throw new Error(`Unsupported mixer change: ${change.type}`)
+        case 'Name':
+            switch (change.channel.kind) {
+                case 'Input':
+                    return {
+                        ...state,
+                        inputs: updateChannel(
+                            state.inputs,
+                            change.channel,
+                            { name: change.value },
+                        ),
+                    };
+
+                case 'Stereo':
+                    return {
+                        ...state,
+                        stereo: updateChannel(
+                            state.stereo,
+                            change.channel,
+                            { name: change.value },
+                        ),
+                    };
+
+                case 'Mix':
+                case 'Lr':
+                    return {
+                        ...state,
+                        mixes: updateChannel(
+                            state.mixes,
+                            change.channel,
+                            { name: change.value },
+                        ),
+                    };
+
+                case 'MuteGroup':
+                    return {
+                        ...state,
+                        muteGroups: updateMuteGroup(
+                            state.muteGroups,
+                            change.channel,
+                            { name: change.value },
+                        ),
+                    };
+            }
+    }
 }
 
 export function patchState(
@@ -171,7 +215,7 @@ export function patchState(
             ...current.mixes[i],
             ...channel,
         })),
-        muteGroups:  received.muteGroups.map((channel, i) => ({
+        muteGroups: received.muteGroups.map((channel, i) => ({
             ...current.muteGroups[i],
             ...channel,
         })),
@@ -199,17 +243,27 @@ export function isMixerChange(value: unknown): value is MixerChange {
 
     const change = value as Record<string, unknown>;
 
-    return (
-        (change.type === 'Fader' || change.type === 'Mute') &&
-        typeof change.channel === 'object' &&
-        change.channel !== null &&
-        (
-            change.type === 'Mute'
-                ? typeof change.muted === 'boolean'
-                : (
-                    typeof change.value === 'number' ||
-                    change.value === null
-                )
-        )
-    );
+    if (
+        typeof change.channel !== 'object' ||
+        change.channel === null
+    ) {
+        return false;
+    }
+
+    switch (change.type) {
+        case 'Fader':
+            return (
+                typeof change.value === 'number' ||
+                change.value === null
+            );
+
+        case 'Mute':
+            return typeof change.muted === 'boolean';
+
+        case 'Name':
+            return typeof change.name === 'string';
+
+        default:
+            return false;
+    }
 }
