@@ -15,7 +15,7 @@ import { MuteButton } from './MuteButton'
 
 interface ChannelStripProps {
     channel: ChannelState;
-    meter?: number | [number | null, number | null];
+    meter?: number | [number | null, number | null] | null;
     muteGroups: MuteGroupState[];
     onFaderChange: (value: number) => void;
     onMuteChange: (muted: boolean) => void;
