@@ -70,14 +70,6 @@ export function ChannelStrip({
 
     const dragging = useRef(false);
     const animationFrame = useRef<number | null>(null);
-    console.log(
-        'Meter:',
-        meter,
-        'Percentage:',
-        Array.isArray(meter)
-            ? meter.map(meterPercentage)
-            : meterPercentage(meter),
-    );
 
     const faderPointer = useRef<{
         active: boolean;

@@ -101,10 +101,10 @@
 
         background: linear-gradient(to top,
                 var(--colour-meter-low) 0%,
-                var(--colour-meter-low) 85.7%,
-                var(--colour-meter-mid) 85.7%,
-                var(--colour-meter-mid) 92.9%,
-                var(--colour-meter-high) 92.9%,
+                var(--colour-meter-low) 75%,
+                var(--colour-meter-mid) 75%,
+                var(--colour-meter-mid) 90%,
+                var(--colour-meter-high) 90%,
                 var(--colour-meter-high) 100%);
 
         /*
@@ -114,7 +114,7 @@
         */
         clip-path: inset(calc(100% - var(--meter-level)) 0 0 0);
 
-        transition: clip-path 500ms linear;
+        transition: clip-path 120ms linear;
     }
 
     &__fader-control {

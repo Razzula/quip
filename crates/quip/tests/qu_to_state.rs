@@ -1,5 +1,5 @@
 use quip::{
-    state::MixerState,
+    state::{MixerState, MeterState},
     qu_to_state::handle_event,
 };
 use qu::{
@@ -11,10 +11,12 @@ use qu::{
 #[test]
 fn handles_fader() {
     let mut state = MixerState::default();
+    let mut meters = MeterState::default();
     let channel = Channel::input(1).unwrap();
 
     handle_event(
         &mut state,
+        &mut meters,
         QuEvent::Fader {
             channel,
             value: 0x40,
@@ -27,10 +29,12 @@ fn handles_fader() {
 #[test]
 fn handles_mute() {
     let mut state = MixerState::default();
+    let mut meters = MeterState::default();
     let channel = Channel::input(1).unwrap();
 
     handle_event(
         &mut state,
+        &mut meters ,
         QuEvent::Mute {
             channel,
             muted: true,

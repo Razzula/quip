@@ -329,75 +329,85 @@ impl MixerState {
 impl MeterState {
     pub fn update(&mut self, values: &[qu::messages::MeterValue]) {
         /*
-         * Qu-16 meter layout:
-         *
-         * 16 × Mono Input blocks (10 meters)
-         * 80 unused
-         * 3 × Stereo Input blocks (20 meters)
-         * 20 unused
-         * 4 × Mono Mix blocks (10 meters)
-         * 4 × Stereo Mix blocks (20 meters)
-         * 1 × Stereo Monitor block (16 meters)
-         * 4 × Stereo FX blocks (80 meters)
-         */
+        * Qu-16 meter layout:
+        *
+        * 16 × Mono Input blocks (10 meters)
+        * 80 unused
+        * 3 × Stereo Input blocks (20 meters)
+        * 20 unused
+        * 4 × Mono Mix blocks (10 meters)
+        * 4 × Stereo Mix blocks (20 meters)
+        * 1 × Stereo Monitor block (78 meters)
+        * 4 × Stereo FX blocks (20 meters)
+        *
+        * The primary channel/mix meters used here are:
+        *
+        * Mono Input:
+        *     index 0 = Post Preamp
+        *
+        * Stereo Input:
+        *     index 0  = Post Preamp L
+        *     index 10 = Post Preamp R
+        *
+        * Mono Mix:
+        *     index 5 = Post Fader
+        *
+        * Stereo Mix:
+        *     index 5  = Post Fader L
+        *     index 15 = Post Fader R
+        */
 
-        // Mono inputs: first meter = Post Preamp.
-        for channel in 0..16 {
-            let index = channel * 10;
+        for meter in values {
+            match meter.block {
+                qu::parameters::MeterBlock::MonoInput(channel) => {
+                    if meter.index == 0 {
+                        if let Some(value) =
+                            self.inputs.get_mut((channel - 1) as usize)
+                        {
+                            *value = meter.db;
+                        }
+                    }
+                }
 
-            if let Some(meter) = values.get(index) {
-                self.inputs[channel] = meter.db;
-            }
-        }
+                qu::parameters::MeterBlock::StereoInput(channel) => {
+                    let Some(stereo) =
+                        self.stereo.get_mut((channel - 1) as usize)
+                    else {
+                        continue;
+                    };
 
-        // Stereo inputs: first L/R meters = Post Preamp L/R.
-        let stereo_offset = (16 * 10) + 80;
+                    match meter.index {
+                        0 => stereo[0] = meter.db,
+                        10 => stereo[1] = meter.db,
+                        _ => {}
+                    }
+                }
 
-        for channel in 0..3 {
-            let index = stereo_offset + channel * 20;
+                qu::parameters::MeterBlock::MonoMix(channel) => {
+                    if meter.index == 5 {
+                        if let Some(mix) =
+                            self.mixes.get_mut((channel - 1) as usize)
+                        {
+                            *mix = [meter.db, meter.db];
+                        }
+                    }
+                }
 
-            if let (Some(left), Some(right)) =
-                (values.get(index), values.get(index + 10))
-            {
-                self.stereo[channel] = [
-                    left.db,
-                    right.db,
-                ];
-            }
-        }
+                qu::parameters::MeterBlock::StereoMix(channel) => {
+                    let Some(mix) =
+                        self.mixes.get_mut((channel + 3) as usize)
+                    else {
+                        continue;
+                    };
 
-        // Mono mixes: first meter = TB/SigGen.
-        let mono_mix_offset =
-            stereo_offset + (3 * 20) + 20;
+                    match meter.index {
+                        5 => mix[0] = meter.db,
+                        15 => mix[1] = meter.db,
+                        _ => {}
+                    }
+                }
 
-        for channel in 0..4 {
-            let index =
-                mono_mix_offset + channel * 10;
-
-            if let Some(meter) = values.get(index) {
-                self.mixes[channel] = [
-                    meter.db,
-                    meter.db,
-                ];
-            }
-        }
-
-        // Stereo mixes:
-        // Mix 5-6, Mix 7-8, Mix 9-10, LR.
-        let stereo_mix_offset =
-            mono_mix_offset + (4 * 10);
-
-        for channel in 0..4 {
-            let index =
-                stereo_mix_offset + channel * 20;
-
-            if let (Some(left), Some(right)) =
-                (values.get(index), values.get(index + 10))
-            {
-                self.mixes[channel + 4] = [
-                    left.db,
-                    right.db,
-                ];
+                _ => {}
             }
         }
     }

@@ -4,7 +4,7 @@ import socket
 from datetime import datetime
 
 
-HOST = '127.0.0.1'
+HOST = '192.168.1.25'
 PORT = 51325
 LOG_FILE = 'quip.log'
 
@@ -388,8 +388,9 @@ class MIDIProcessor:
         self.pending = bytearray()
         self.nrpn = NRPNState()
 
-    def process(self, data: bytes) -> list[str]:
+    def process(self, data: bytes) -> tuple[list[str], bool]:
         events = []
+        meter_received = False
 
         for byte in data:
 
@@ -415,21 +416,22 @@ class MIDIProcessor:
                 if byte == 0xF7:
                     raw = bytes(self.pending)
 
+                    events.append(
+                        f'SysEx: {hex_bytes(raw)}'
+                    )
+
                     # -------------------------------------------------------
                     # Meter data
                     # -------------------------------------------------------
 
                     if (
                         len(raw) >= 10
-                        and raw[8] == METER_DATA_COMMAND
+                        and raw[9] == METER_DATA_COMMAND
                     ):
+                        meter_received = True
+
                         events.extend(
                             parse_meter_sysex(raw)
-                        )
-
-                    else:
-                        events.append(
-                            f'SysEx: {hex_bytes(raw)}'
                         )
 
                     self.pending.clear()
@@ -579,7 +581,7 @@ class MIDIProcessor:
                     f'{raw_suffix(raw)}'
                 )
 
-        return events
+        return events, meter_received
 
 
 # ---------------------------------------------------------------------------
@@ -587,6 +589,19 @@ class MIDIProcessor:
 # ---------------------------------------------------------------------------
 
 METER_DATA_COMMAND = 0x13
+
+METER_NAMES = [
+    'Post Preamp',
+    'Post PEQ',
+    'Post Compressor',
+    'Post Delay',
+    'Gate Side Chain',
+    'Compressor Side Chain',
+    'Direct Out',
+    'Gate GR',
+    'Compressor GR',
+    'Ducker GR',
+]
 
 
 def unpack_7bit(data: bytes) -> bytes:
@@ -596,6 +611,16 @@ def unpack_7bit(data: bytes) -> bytes:
     Every group contains:
         1 byte  = high-bit flags
         7 bytes = payload bytes with their high bits removed
+
+    The flag byte is:
+
+        0ABCDEFG
+
+    Therefore:
+        bit 6 -> payload byte 0
+        bit 5 -> payload byte 1
+        ...
+        bit 0 -> payload byte 6
     """
 
     raw = bytearray()
@@ -610,7 +635,7 @@ def unpack_7bit(data: bytes) -> bytes:
         for i in range(remaining):
             value = data[index + i]
 
-            if flags & (1 << i):
+            if flags & (0x40 >> i):
                 value |= 0x80
 
             raw.append(value)
@@ -627,15 +652,29 @@ def meter_db(raw: bytes) -> float:
     The protocol stores:
         unsigned = signed_value + 0x8000
         dB = signed_value / 256
+
+    The two bytes are transmitted low byte first.
     """
 
     if len(raw) != 2:
         raise ValueError('Meter value must contain exactly two bytes')
 
-    value = int.from_bytes(raw, 'big')
+    value = int.from_bytes(raw, 'little')
     signed = value - 0x8000
 
     return signed / 256.0
+
+
+def describe_meter(
+    raw: bytes,
+    offset: int,
+) -> str:
+    value = raw[offset:offset + 2]
+
+    if len(value) != 2:
+        return '<missing>'
+
+    return f'{meter_db(value):7.2f} dB'
 
 
 def parse_meter_sysex(data: bytes) -> list[str]:
@@ -662,65 +701,74 @@ def parse_meter_sysex(data: bytes) -> list[str]:
     if len(data) < 10:
         return []
 
-    if data[:8] != bytes.fromhex(
-        'F0 00 00 1A 50 11 01 00'
+    if data[:10] != bytes.fromhex(
+        'F0 00 00 1A 50 11 01 00 00 13'
     ):
         return []
 
-    if data[8] != METER_DATA_COMMAND:
+    if data[9] != METER_DATA_COMMAND:
         return []
 
     if data[-1] != 0xF7:
         return []
 
-    packed = data[9:-1]
+    packed = data[10:-1]
     raw = unpack_7bit(packed)
 
     events = []
 
+    events.append(
+        f'  Meter Data: '
+        f'packed={len(packed)} bytes, '
+        f'unpacked={len(raw)} bytes'
+    )
+
+    events.append(
+        f'    Packed:   {hex_bytes(packed)}'
+    )
+
+    events.append(
+        f'    Unpacked: {hex_bytes(raw)}'
+    )
+
     # -----------------------------------------------------------------------
-    # Mono inputs
+    # The first meter in each channel block is the primary channel meter.
     #
-    # 16 blocks
-    # 10 meters per block
-    # 2 bytes per meter
+    # Mono input:
+    #     10 meters × 2 bytes
     #
-    # First meter in each block:
-    #   Post Preamp
+    # Stereo input:
+    #     20 meters × 2 bytes
+    #
+    # There are 80 unused meters between mono and stereo inputs.
     # -----------------------------------------------------------------------
 
     MONO_INPUT_METERS = 10
+    STEREO_INPUT_METERS = 20
+    MIX_MONO_METERS = 10
+    MIX_STEREO_METERS = 20
     meter_size = 2
+
+    # -----------------------------------------------------------------------
+    # Mono inputs
+    # -----------------------------------------------------------------------
+
+    mono_input_start = 0
+
+    input_values = []
 
     for channel in range(16):
         offset = (
-            channel
-            * MONO_INPUT_METERS
-            * meter_size
-        )
+            mono_input_start
+            + channel * MONO_INPUT_METERS
+        ) * meter_size
 
-        if offset + meter_size > len(raw):
-            break
-
-        db = meter_db(
-            raw[offset:offset + meter_size]
-        )
-
-        events.append(
-            f'CH{channel + 1} Meter: {db:.2f} dB'
+        input_values.append(
+            describe_meter(raw, offset)
         )
 
     # -----------------------------------------------------------------------
     # Stereo inputs
-    #
-    # 80 unused meters occur before the stereo input blocks.
-    #
-    # Each stereo block contains:
-    #
-    #   10 meters L
-    #   10 meters R
-    #
-    # The first two values are Post Preamp L/R.
     # -----------------------------------------------------------------------
 
     stereo_input_start = (
@@ -728,7 +776,7 @@ def parse_meter_sysex(data: bytes) -> list[str]:
         + 80
     )
 
-    STEREO_INPUT_METERS = 20
+    stereo_values = []
 
     for channel in range(3):
         offset = (
@@ -736,30 +784,22 @@ def parse_meter_sysex(data: bytes) -> list[str]:
             + channel * STEREO_INPUT_METERS
         ) * meter_size
 
-        if offset + (2 * meter_size) > len(raw):
-            break
-
-        left = meter_db(
-            raw[offset:offset + meter_size]
+        left = describe_meter(
+            raw,
+            offset,
         )
 
-        right = meter_db(
-            raw[offset + meter_size:
-                offset + (2 * meter_size)]
+        right = describe_meter(
+            raw,
+            offset + 10 * meter_size,
         )
 
-        events.append(
-            f'ST{channel + 1} Meter: '
-            f'L {left:.2f} dB, '
-            f'R {right:.2f} dB'
+        stereo_values.append(
+            f'L {left} / R {right}'
         )
 
     # -----------------------------------------------------------------------
     # Mono mixes
-    #
-    # 20 unused meters occur before the mono mix blocks.
-    #
-    # Each mono mix block contains 10 meters.
     # -----------------------------------------------------------------------
 
     mono_mix_start = (
@@ -768,7 +808,7 @@ def parse_meter_sysex(data: bytes) -> list[str]:
         + 20
     )
 
-    MIX_MONO_METERS = 10
+    mix_values = []
 
     for mix in range(4):
         offset = (
@@ -776,15 +816,11 @@ def parse_meter_sysex(data: bytes) -> list[str]:
             + mix * MIX_MONO_METERS
         ) * meter_size
 
-        if offset + meter_size > len(raw):
-            break
-
-        db = meter_db(
-            raw[offset:offset + meter_size]
-        )
-
-        events.append(
-            f'Mix {mix + 1} Meter: {db:.2f} dB'
+        mix_values.append(
+            f'Mix {mix + 1} {describe_meter(
+                raw,
+                offset + 5 * meter_size,
+            )}'
         )
 
     # -----------------------------------------------------------------------
@@ -794,20 +830,12 @@ def parse_meter_sysex(data: bytes) -> list[str]:
     # Mix 7-8
     # Mix 9-10
     # LR
-    #
-    # Each block contains 20 meters:
-    #   10 L
-    #   10 R
-    #
-    # The first two values are the normal L/R meter values.
     # -----------------------------------------------------------------------
 
     stereo_mix_start = (
         mono_mix_start
         + 4 * MIX_MONO_METERS
     )
-
-    MIX_STEREO_METERS = 20
 
     stereo_mix_names = (
         'Mix 5-6',
@@ -822,23 +850,43 @@ def parse_meter_sysex(data: bytes) -> list[str]:
             + mix * MIX_STEREO_METERS
         ) * meter_size
 
-        if offset + (2 * meter_size) > len(raw):
-            break
-
-        left = meter_db(
-            raw[offset:offset + meter_size]
+        left = describe_meter(
+            raw,
+            offset + 5 * meter_size,   # Post Fader L
         )
 
-        right = meter_db(
-            raw[offset + meter_size:
-                offset + (2 * meter_size)]
+        right = describe_meter(
+            raw,
+            offset + 15 * meter_size,  # Post Fader R
         )
 
-        events.append(
-            f'{name} Meter: '
-            f'L {left:.2f} dB, '
-            f'R {right:.2f} dB'
+        mix_values.append(
+            f'{name} L {left} / R {right}'
         )
+
+    # -----------------------------------------------------------------------
+    # Readable summary
+    # -----------------------------------------------------------------------
+
+    events.append('  Meter Values:')
+
+    events.append(
+        '    Inputs: ['
+        + ', '.join(input_values)
+        + ']'
+    )
+
+    events.append(
+        '    STs: ['
+        + ', '.join(stereo_values)
+        + ']'
+    )
+
+    events.append(
+        '    Mixes: ['
+        + ', '.join(mix_values)
+        + ']'
+    )
 
     return events
 
@@ -851,7 +899,6 @@ def log(message: str, file) -> None:
     timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
     line = f'[{timestamp}] {message}'
 
-    print(line)
     file.write(line + '\n')
     file.flush()
 
@@ -881,7 +928,9 @@ def main() -> None:
             data = sock.recv(4096)
 
             if data:
-                for event in processor.process(data):
+                events, _ = processor.process(data)
+
+                for event in events:
                     log(event, log_file)
 
             # log('Requesting system state...', log_file)
@@ -897,9 +946,17 @@ def main() -> None:
                     log('Connection closed.', log_file)
                     break
 
-                for event in processor.process(data):
+                events, meter_received = processor.process(data)
+
+                for event in events:
                     log(event, log_file)
 
+                if meter_received:
+                    log('Disabling meter data...', log_file)
+                    sock.sendall(METER_OFF)
+                    break
+
+            log('Done.', log_file)
 
 if __name__ == '__main__':
     main()

@@ -312,14 +312,14 @@ impl Parser {
     ) {
         // Qu meter data SysEx:
         //
-        // F0 00 00 1A 50 11 01 00 13 <MeterData...> F7
+        // F0 00 00 1A 50 11 01 00 00 13 <MeterData...> F7
         //
         // 0x13 is the meter-data response. The meter payload is packed
         // into MIDI-safe 7-bit bytes.
 
         const METER_PREFIX: &[u8] = &[
             0xF0, 0x00, 0x00, 0x1A,
-            0x50, 0x11, 0x01, 0x00, 0x13,
+            0x50, 0x11, 0x01, 0x00, 0x00, 0x13,
         ];
 
         if data.starts_with(METER_PREFIX)
@@ -587,20 +587,30 @@ fn parse_meter_values(data: &[u8]) -> Vec<MeterValue> {
                     (index - 360) % 20,
                 ),
 
-                440..456 => (
+                440..518 => (
                     MeterBlock::Monitor,
                     index - 440,
                 ),
 
-                456..776 => (
-                    MeterBlock::Fx(((index - 456) / 80 + 1) as u8),
-                    (index - 456) % 80,
+                518..598 => (
+                    MeterBlock::Fx(((index - 518) / 20 + 1) as u8),
+                    (index - 518) % 20,
                 ),
 
                 _ => return None,
             };
 
-            let raw = u16::from_be_bytes([bytes[0], bytes[1]]);
+           let raw = u16::from_le_bytes([bytes[0], bytes[1]]);
+
+            if index == 325 {
+                println!(
+                    "MonoMix(1)[5]: bytes={:02X} {:02X}, raw={:#06X}, db={}",
+                    bytes[0],
+                    bytes[1],
+                    raw,
+                    (raw.wrapping_sub(0x8000) as i16) as f32 / 256.0,
+                );
+            }
 
             // Signed 7Q8 fixed-point value with a 0x8000 offset.
             let value = raw.wrapping_sub(0x8000) as i16;
